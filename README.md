@@ -26,3 +26,4 @@ An e-paper dashboard in a photo frame to show environment information.
 - [image2cpp](http://javl.github.io/image2cpp/)
 - [Adafruit GFX Graphics Library - Using Fonts](https://learn.adafruit.com/adafruit-gfx-graphics-library/using-fonts)
 - [The Beauty of Bresenham's Algorithm](http://members.chello.at/~easyfilter/bresenham.html)
+- [Drawing Thick Lines](http://kt8216.unixcab.org/murphy/index.html)

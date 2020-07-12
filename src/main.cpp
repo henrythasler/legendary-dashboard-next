@@ -4,10 +4,17 @@
 
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
+
+/**
+ * this file contains the following variables
+ * const char *ssid = "test" // WiFi AP-Name
+ * const char *password = "1234" // WiFi-password 
+ * IPAddress server(192, 168, 0, 0); // MQTT-Server
+ **/
 #include <secrets.h>
 
 WiFiClient wifiClient;
-PubSubClient client(wifiClient);
+PubSubClient mqttClient(wifiClient);
 
 // Environment sensor includes and defines
 #include <Adafruit_Sensor.h>
@@ -59,9 +66,10 @@ GxEPD_Class display(io, /*RST=D4*/ 16, /*BUSY=D6*/ 12);
 
 // Statistics Helper-Class
 #include <timeseries.h>
-Timeseries tempStats(5000U);
-Timeseries humStats(5000U);
-Timeseries pressStats(5000U);
+Timeseries tempStats(1000U);
+Timeseries humStats(1000U);
+Timeseries pressStats(1000U);
+Timeseries outside(1000U);
 
 // uptime calculation
 #include <uptime.h>
@@ -107,6 +115,8 @@ void callback(char *topic, byte *payload, unsigned int length)
   }
   message_buff[i] = 0;
   currentOutsideTemperatureCelsius = atof(message_buff);
+  uint32_t timestamp = uptime.getSeconds();
+  outside.push(timestamp, currentOutsideTemperatureCelsius);
   Serial.println();
 }
 
@@ -219,8 +229,8 @@ void setup()
   initStage++;
 
   Serial.println("[  INIT  ] Connecting to MQTT-Server...");
-  client.setServer(server, 1883);
-  client.setCallback(callback);
+  mqttClient.setServer(server, 1883);
+  mqttClient.setCallback(callback);
   initStage++;
 
   Serial.printf("[  INIT  ] Completed at stage %u\n\n", initStage);
@@ -277,9 +287,11 @@ void updateScreen()
   // display.printf("%.1f", pressStats.min);
 
   // Charts
-  chart.lineChart(&display, &tempStats, 170, 92, 230, 88, 1.5, COLOR);
+  chart.lineChart(&display, &tempStats, 170, 92, 230, 88, 1.5, COLOR, false, false, false, -10, 35);
+  chart.lineChart(&display, &outside, 170, 92, 230, 88, 1.5, BLACK, false, false, false, -10, 35);
   chart.lineChart(&display, &humStats, 170, 190, 230, 44, 1.5, BLACK);
   chart.lineChart(&display, &pressStats, 170, 242, 230, 44, 1.5, BLACK);
+
 
   // Uptime and Memory stats
   display.setFont(&Org_01);
@@ -302,15 +314,15 @@ void updateScreen()
 void reconnect()
 {
   Serial.print("[  MQTT  ] Attempting MQTT connection... ");
-  if (client.connect(WiFi.hostname().c_str()))
+  if (mqttClient.connect(WiFi.hostname().c_str()))
   {
     Serial.println("connected");
-    client.subscribe("home/out/temp/value");
+    mqttClient.subscribe("home/out/temp/value");
   }
   else
   {
     Serial.print("failed, rc=");
-    Serial.print(client.state());
+    Serial.print(mqttClient.state());
   }
 }
 
@@ -320,7 +332,7 @@ void loop()
   // 100ms Tasks
   if (!(counterBase % (100L / SCHEDULER_MAIN_LOOP_MS)))
   {
-    client.loop();
+    mqttClient.loop();
   }
 
   // 500ms Tasks
@@ -336,11 +348,9 @@ void loop()
   // 30s Tasks
   if (!(counterBase % (30000L / SCHEDULER_MAIN_LOOP_MS)))
   {
-    if (!client.connected())
+    if (!mqttClient.connected())
     {
       reconnect();
-      delay(100);
-      client.loop();
     }
 
     if (environmentSensorAvailable)
