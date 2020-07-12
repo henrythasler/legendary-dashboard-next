@@ -24,4 +24,4 @@ An e-paper dashboard in a photo frame to show environment information.
 ### Graphics, Artwork
 
 - [image2cpp](http://javl.github.io/image2cpp/)
-~- [Adafruit GFX Graphics Library - Using Fonts](https://learn.adafruit.com/adafruit-gfx-graphics-library/using-fonts)
+- [Adafruit GFX Graphics Library - Using Fonts](https://learn.adafruit.com/adafruit-gfx-graphics-library/using-fonts)

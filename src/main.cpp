@@ -1,6 +1,9 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include "LittleFS.h"
+#include <LittleFS.h>
+
+#include <ESP8266WiFi.h>
+#include <secrets.h>
 
 // Environment sensor includes and defines
 #include <Adafruit_Sensor.h>
@@ -169,6 +172,20 @@ void setup()
   Serial.println();
   Serial.println("[  INIT  ] Begin");
   initStage++;
+
+  //connect to your local wi-fi network
+  Serial.printf("[  INIT  ] Connecting to Wifi '%s'", ssid);
+  WiFi.begin(ssid, password);
+
+  //check wi-fi is connected to wi-fi network
+  while (WiFi.status() != WL_CONNECTED) {
+  delay(1000);
+  Serial.print(".");
+  }
+  Serial.print(" connected!");
+  Serial.print(" (IP=");  
+  Serial.print(WiFi.localIP());
+  Serial.println(")");  
 
   // Initialize Environment Sensor
   if (bme.begin(BME280_ADDR, &Wire)) // use custom Wire-Instance to avoid interference with other libraries.
