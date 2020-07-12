@@ -42,15 +42,22 @@ void updateScreen()
 {
   display.fillScreen(WHITE);
   Timeseries dampedCosine(200), mod(200), step(200);
-  for (int x = 0; x < 200; x+=random(10))
+  for (int x = 0; x < 200; x += random(10))
   {
-    dampedCosine.push(x, exp(-float(x)/50.)*cos(float(x)/10.)*30+float(random(10))-5.);
-    step.push(x, x<100?float(random(10))-5.:float(random(10))+50.);
+    dampedCosine.push(x, exp(-float(x) / 50.) * cos(float(x) / 10.) * 30 + float(random(10)) - 5.);
+    step.push(x, x < 100 ? float(random(10)) - 5. : float(random(10)) + 50.);
   }
+  chart.plotLineWidth(&display, 5 + 10, 5 + 10, 190, 5 + 10, 1, BLACK);
   chart.lineChart(&display, &dampedCosine, 5, 5, 190, 140, 1.2, BLACK, true);
+
+  chart.plotLineWidth(&display, 205 + 10, 5 + 10, 200 + 190, 5 + 10, 2, BLACK);
   chart.lineChart(&display, &dampedCosine, 205, 5, 190, 140, 1.5, BLACK, true);
-  chart.lineChart(&display, &dampedCosine, 5, 155, 190, 140, 2, BLACK, true);
-  chart.lineChart(&display, &dampedCosine, 205, 155, 190, 140, 2.5, BLACK, true);
+
+  chart.plotLineWidth(&display, 5 + 10, 155 + 10, 190, 155 + 10, 3, BLACK);
+  chart.lineChart(&display, &dampedCosine, 5, 155, 190, 140, 2, COLOR, true);
+
+  chart.plotLineWidth(&display, 205 + 10, 155 + 10, 200 + 190, 155 + 10, 5, BLACK);
+  chart.lineChart(&display, &dampedCosine, 205, 155, 190, 140, 2.5, COLOR, true);
   display.update();
 }
 
