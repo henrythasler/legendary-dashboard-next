@@ -3,7 +3,11 @@
 #include <LittleFS.h>
 
 #include <ESP8266WiFi.h>
+#include <PubSubClient.h>
 #include <secrets.h>
+
+WiFiClient wifiClient;
+PubSubClient client(wifiClient);
 
 // Environment sensor includes and defines
 #include <Adafruit_Sensor.h>
@@ -81,94 +85,37 @@ uint32_t uptimeSeconds = 0;
 float currentTemperatureCelsius;
 float currentHumidityPercent;
 float currentPressurePascal;
-
-void updateScreen()
-{
-  display.drawBitmap(images.background.color, 0, 0, 400, 300, COLOR, display.bm_invert);
-  display.drawBitmap(images.background.black, 0, 0, 400, 300, BLACK, display.bm_invert | display.bm_transparent);
-
-  // Time
-  display.setFont(&NotoSans_Bold30pt7b);
-  display.setTextColor(COLOR);
-  display.setCursor(128, 51);
-  display.printf("13:37");
-
-  // Date
-  display.setFont(&NotoSans_Bold13pt8b);
-  display.setTextColor(BLACK);
-  display.setCursor(3, 82);
-  display.printf("Samstag, 11. Dezember 2020");
-
-  // current values
-  display.setFont(&NotoSans_Bold20pt7b);
-  display.setTextColor(WHITE);
-  display.setCursor(48, 126);
-  display.printf("%.1f", currentTemperatureCelsius);
-
-  display.setTextColor(BLACK);
-  display.setCursor(95, 227);
-  display.printf("%.0f", currentHumidityPercent);
-  display.setCursor(48, 280);
-  display.printf("%.0f", currentPressurePascal / 100);
-
-  // Linecharts
-  // Y-Axis Labels
-  // display.setFont(&Org_01);
-  // display.setTextColor(BLACK);
-  // display.setCursor(2, 165);
-  // display.printf("%.1f", tempStats.max);
-  // display.setCursor(2, 254);
-  // display.printf("%.1f", tempStats.min);
-
-  // display.setCursor(135, 165);
-  // display.printf("%.0f", humStats.max);
-  // display.setCursor(135, 254);
-  // display.printf("%.0f", humStats.min);
-
-  // display.setCursor(268, 165);
-  // display.printf("%.1f", pressStats.max);
-  // display.setCursor(268, 254);
-  // display.printf("%.1f", pressStats.min);
-
-  // Charts
-  chart.lineChart(&display, &tempStats, 170, 92, 230, 88, COLOR);
-  chart.lineChart(&display, &humStats, 170, 190, 230, 44, BLACK);
-  chart.lineChart(&display, &pressStats, 170, 242, 230, 44, BLACK);
-
-  // Uptime and Memory stats
-  display.setFont(&Org_01);
-  display.setTextColor(BLACK);
-  display.setCursor(0, 298);
-  display.printf("Free: %uK (%uK)  Temp: %u (%uB)  Hum: %u (%uB) Press: %u (%uB) Up: %us",
-                 ESP.getFreeHeap() / 1024,
-                 ESP.getMaxFreeBlockSize() / 1024,
-                 tempStats.size(),
-                 sizeof(tempStats.data) + sizeof(Point) * tempStats.data.capacity(),
-                 humStats.size(),
-                 sizeof(humStats.data) + sizeof(Point) * humStats.data.capacity(),
-                 pressStats.size(),
-                 sizeof(pressStats.data) + sizeof(Point) * pressStats.data.capacity(),
-                 uptimeSeconds);
-
-  display.update();
-}
+float currentOutsideTemperatureCelsius;
 
 void ICACHE_RAM_ATTR onTimerISR()
 {
   uptimeSeconds++;
-  timer1_write(312500U); //12us
+  timer1_write(312500U); // 1s
+}
+
+char message_buff[100];
+void callback(char *topic, byte *payload, unsigned int length)
+{
+  Serial.print("[  MQTT  ] Message arrived [");
+  Serial.print(topic);
+  Serial.print("]: ");
+  uint32_t i;
+  for (i = 0; i < length; i++)
+  {
+    Serial.print((char)payload[i]);
+    message_buff[i] = payload[i];
+  }
+  message_buff[i] = 0;
+  currentOutsideTemperatureCelsius = atof(message_buff);
+  Serial.println();
 }
 
 // run once on startup
 void setup()
 {
-  pinMode(BME280_PIN_VCC, OUTPUT);
-  digitalWrite(BME280_PIN_VCC, HIGH);
-  delay(5); // wait for BMW280 to power up. Takes around 2ms.
-  initStage++;
-
   // Setup serial connection for debugging
   Serial.begin(115200U);
+  delay(500);
   Serial.println();
   Serial.println("[  INIT  ] Begin");
   initStage++;
@@ -178,14 +125,21 @@ void setup()
   WiFi.begin(ssid, password);
 
   //check wi-fi is connected to wi-fi network
-  while (WiFi.status() != WL_CONNECTED) {
-  delay(1000);
-  Serial.print(".");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(1000);
+    Serial.print(".");
   }
   Serial.print(" connected!");
-  Serial.print(" (IP=");  
+  Serial.print(" (IP=");
   Serial.print(WiFi.localIP());
-  Serial.println(")");  
+  Serial.println(")");
+
+  // Power-On Environment Sensor
+  pinMode(BME280_PIN_VCC, OUTPUT);
+  digitalWrite(BME280_PIN_VCC, HIGH);
+  delay(5); // wait for BMW280 to power up. Takes around 2ms.
+  initStage++;
 
   // Initialize Environment Sensor
   if (bme.begin(BME280_ADDR, &Wire)) // use custom Wire-Instance to avoid interference with other libraries.
@@ -264,7 +218,100 @@ void setup()
   timer1_write(312500U); // 1s
   initStage++;
 
+  Serial.println("[  INIT  ] Connecting to MQTT-Server...");
+  client.setServer(server, 1883);
+  client.setCallback(callback);
+  initStage++;
+
   Serial.printf("[  INIT  ] Completed at stage %u\n\n", initStage);
+}
+
+void updateScreen()
+{
+  display.drawBitmap(images.background.color, 0, 0, 400, 300, COLOR, display.bm_invert);
+  display.drawBitmap(images.background.black, 0, 0, 400, 300, BLACK, display.bm_invert | display.bm_transparent);
+
+  // Time
+  display.setFont(&NotoSans_Bold30pt7b);
+  display.setTextColor(COLOR);
+  display.setCursor(128, 51);
+  display.printf("13:37");
+
+  // Date
+  display.setFont(&NotoSans_Bold13pt8b);
+  display.setTextColor(BLACK);
+  display.setCursor(3, 82);
+  display.printf("Samstag, 11. Dezember 2020");
+
+  // current values
+  display.setFont(&NotoSans_Bold20pt7b);
+  display.setTextColor(WHITE);
+  display.setCursor(48, 126);
+  display.printf("%.1f", currentTemperatureCelsius);
+  display.setCursor(48, 173);
+  display.printf("%.1f", currentOutsideTemperatureCelsius);
+
+  display.setTextColor(BLACK);
+  display.setCursor(95, 227);
+  display.printf("%.0f", currentHumidityPercent);
+  display.setCursor(48, 280);
+  display.printf("%.0f", currentPressurePascal / 100);
+
+  // Linecharts
+  // Y-Axis Labels
+  // display.setFont(&Org_01);
+  // display.setTextColor(BLACK);
+  // display.setCursor(2, 165);
+  // display.printf("%.1f", tempStats.max);
+  // display.setCursor(2, 254);
+  // display.printf("%.1f", tempStats.min);
+
+  // display.setCursor(135, 165);
+  // display.printf("%.0f", humStats.max);
+  // display.setCursor(135, 254);
+  // display.printf("%.0f", humStats.min);
+
+  // display.setCursor(268, 165);
+  // display.printf("%.1f", pressStats.max);
+  // display.setCursor(268, 254);
+  // display.printf("%.1f", pressStats.min);
+
+  // Charts
+  chart.lineChart(&display, &tempStats, 170, 92, 230, 88, 1.5, COLOR);
+  chart.lineChart(&display, &humStats, 170, 190, 230, 44, 1.5, BLACK);
+  chart.lineChart(&display, &pressStats, 170, 242, 230, 44, 1.5, BLACK);
+
+  // Uptime and Memory stats
+  display.setFont(&Org_01);
+  display.setTextColor(BLACK);
+  display.setCursor(0, 298);
+  display.printf("Free: %uK (%uK)  Temp: %u (%uB)  Hum: %u (%uB) Press: %u (%uB) Up: %us",
+                 ESP.getFreeHeap() / 1024,
+                 ESP.getMaxFreeBlockSize() / 1024,
+                 tempStats.size(),
+                 sizeof(tempStats.data) + sizeof(Point) * tempStats.data.capacity(),
+                 humStats.size(),
+                 sizeof(humStats.data) + sizeof(Point) * humStats.data.capacity(),
+                 pressStats.size(),
+                 sizeof(pressStats.data) + sizeof(Point) * pressStats.data.capacity(),
+                 uptimeSeconds);
+
+  display.update();
+}
+
+void reconnect()
+{
+  Serial.print("[  MQTT  ] Attempting MQTT connection... ");
+  if (client.connect(WiFi.hostname().c_str()))
+  {
+    Serial.println("connected");
+    client.subscribe("home/out/temp/value");
+  }
+  else
+  {
+    Serial.print("failed, rc=");
+    Serial.print(client.state());
+  }
 }
 
 // run forever
@@ -273,6 +320,7 @@ void loop()
   // 100ms Tasks
   if (!(counterBase % (100L / SCHEDULER_MAIN_LOOP_MS)))
   {
+    client.loop();
   }
 
   // 500ms Tasks
@@ -288,6 +336,13 @@ void loop()
   // 30s Tasks
   if (!(counterBase % (30000L / SCHEDULER_MAIN_LOOP_MS)))
   {
+    if (!client.connected())
+    {
+      reconnect();
+      delay(100);
+      client.loop();
+    }
+
     if (environmentSensorAvailable)
     {
       // read current measurements
@@ -297,7 +352,7 @@ void loop()
 
       // Serial.printf("Temp=%.1f°C  Hum=%.1f%%  Press=%.1fhPa\n", currentTemperatureCelsius, currentHumidityPercent, currentPressurePascal / 100.);
       // memory state
-      Serial.printf("[ MEMORY ] Free: %u KiB (%u KiB)  Temp: %u (%u B)  Hum: %u (%u B) Press: %u (%u B) Uptime: %us\n",
+      Serial.printf("[ STATUS ] Free: %u KiB (%u KiB)  Temp: %u (%u B)  Hum: %u (%u B) Press: %u (%u B) Uptime: %us\n",
                     ESP.getFreeHeap() / 1024,
                     ESP.getMaxFreeBlockSize() / 1024,
                     tempStats.size(),

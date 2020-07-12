@@ -11,6 +11,7 @@ void Chart::lineChart(GxEPD_Class *display,
                       uint16_t canvasTop,
                       uint16_t canvasWidth,
                       uint16_t canvasHeight,
+                      float lineWidth,
                       uint16_t lineColor,
                       bool drawDataPoints,
                       bool yAxisMinAuto,
@@ -47,31 +48,45 @@ void Chart::lineChart(GxEPD_Class *display,
             screenX2 = canvasLeft + int16_t((t2 - tMin) * pixelPerTime);
             screenY2 = canvasTop + canvasHeight / 2 - int16_t(y2 * pixelPerValue);
 
-            display->drawLine(screenX1, screenY1, screenX2, screenY2, lineColor);
+            plotLineWidth(display, screenX1, screenY1, screenX2, screenY2, lineWidth, lineColor);
             if (drawDataPoints)
                 display->fillCircle(screenX1, screenY1, 2, lineColor);
         }
     }
 }
 
-/**
- * Draw bars to show signal strength of mobile network
- * 
- ******************************************************/
-void Chart::signalBars(GxEPD_Class *display, int strength, int x, int y, int numBars, int barWidth, int barHeight, int heightDelta, int gapWidth, uint16_t strokeColor, uint16_t signalColor, uint16_t fillColor)
+// from: http://members.chello.at/~easyfilter/bresenham.html
+void Chart::plotLineWidth(GxEPD_Class *display, int32_t x0, int32_t y0, int32_t x1, int32_t y1, float wd, uint16_t lineColor)
 {
-    int i;
+    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    int dy = abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    int err = dx - dy, e2, x2, y2; /* error value e_xy */
+    float ed = dx + dy == 0 ? 1 : sqrt((float)dx * dx + (float)dy * dy);
 
-    for (i = 0; i < numBars; i++)
-    {
-        if (strength > (int)((31 / (numBars + 1))) * (i + 1))
-        {
-            display->fillRect(x + i * (barWidth + gapWidth), y + (numBars - 1 - i) * heightDelta, barWidth, barHeight - (numBars - 1 - i) * heightDelta, signalColor);
+    for (wd = (wd + 1) / 2;;)
+    { /* pixel loop */
+        display->writePixel(x0, y0, max(0.f, 255 * (abs(err - dx + dy) / ed - wd + 1)));
+        e2 = err;
+        x2 = x0;
+        if (2 * e2 >= -dx)
+        { /* x step */
+            for (e2 += dy, y2 = y0; e2 < ed * wd && (y1 != y2 || dx > dy); e2 += dx)
+                display->writePixel(x0, y2 += sy, max(0.f, 255 * (abs(e2) / ed - wd + 1)));
+            if (x0 == x1)
+                break;
+            e2 = err;
+            err -= dy;
+            x0 += sx;
         }
-        else {
-            display->fillRect(x + i * (barWidth + gapWidth), y + (numBars - 1 - i) * heightDelta, barWidth, barHeight - (numBars - 1 - i) * heightDelta, fillColor);            
+        if (2 * e2 <= dy)
+        { /* y step */
+            for (e2 = dx - e2; e2 < ed * wd && (x1 != x2 || dx < dy); e2 += dy)
+                display->writePixel(x2 += sx, y0, max(0.f, 255 * (abs(e2) / ed - wd + 1)));
+            if (y0 == y1)
+                break;
+            err += dx;
+            y0 += sy;
         }
-        display->drawRect(x + i * (barWidth + gapWidth), y + (numBars - 1 - i) * heightDelta, barWidth, barHeight - (numBars - 1 - i) * heightDelta, strokeColor);
     }
 }
 
