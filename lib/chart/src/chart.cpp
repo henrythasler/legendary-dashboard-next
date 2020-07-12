@@ -65,13 +65,18 @@ void Chart::plotLineWidth(GxEPD_Class *display, int32_t x0, int32_t y0, int32_t 
 
     for (wd = (wd + 1) / 2;;)
     { /* pixel loop */
-        display->writePixel(x0, y0, max(0.f, 255 * (abs(err - dx + dy) / ed - wd + 1)));
+        if ((abs(err - dx + dy) / ed - wd + 1) <= 0.5)
+            display->writePixel(x0, y0, lineColor);
         e2 = err;
         x2 = x0;
         if (2 * e2 >= -dx)
         { /* x step */
             for (e2 += dy, y2 = y0; e2 < ed * wd && (y1 != y2 || dx > dy); e2 += dx)
-                display->writePixel(x0, y2 += sy, max(0.f, 255 * (abs(e2) / ed - wd + 1)));
+            {
+                y2 += sy;
+                if ((abs(e2) / ed - wd + 1) <= 0.5)
+                    display->writePixel(x0, y2, lineColor);
+            }
             if (x0 == x1)
                 break;
             e2 = err;
@@ -81,7 +86,11 @@ void Chart::plotLineWidth(GxEPD_Class *display, int32_t x0, int32_t y0, int32_t 
         if (2 * e2 <= dy)
         { /* y step */
             for (e2 = dx - e2; e2 < ed * wd && (x1 != x2 || dx < dy); e2 += dy)
-                display->writePixel(x2 += sx, y0, max(0.f, 255 * (abs(e2) / ed - wd + 1)));
+            {
+                x2 += sx;
+                if ((abs(e2) / ed - wd + 1) <= 0.5)
+                    display->writePixel(x2, y0, lineColor);
+            }
             if (y0 == y1)
                 break;
             err += dx;
