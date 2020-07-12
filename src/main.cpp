@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include "LittleFS.h"
 
 // Environment sensor includes and defines
 #include <Adafruit_Sensor.h>
@@ -43,15 +44,11 @@ GxEPD_Class display(io, /*RST=D4*/ 16, /*BUSY=D6*/ 12);
 #include <Fonts/Org_01.h>
 
 // Custom 8-bit Fonts including character codes 128-255 (e.g. öäü)
-#include <FreeSans7pt8b.h>
-#include <FreeSansBold7pt8b.h>
-#include <FreeSans9pt8b.h>
-#include <FreeSansBold9pt8b.h>
-#include <FreeSans12pt8b.h>
-#include <FreeSansBold12pt8b.h>
-#include <FreeSansBold14pt8b.h>
-#include <LiberationSansNarrow9pt8b.h>
-#include <LiberationSansNarrowBold9pt8b.h>
+#include <NotoSansBold13pt8b.h>
+
+// Only Numbers and some signs
+#include <NotoSansBold20ptNum.h>
+#include <NotoSansBold30ptNum.h>
 
 // Statistics Helper-Class
 #include <timeseries.h>
@@ -66,6 +63,8 @@ Uptime uptime;
 // charts
 #include <chart.h>
 Chart chart;
+
+#include <gfx.h>
 
 // Flow control, basic task scheduler
 #define SCHEDULER_MAIN_LOOP_MS (10) // ms
@@ -82,54 +81,60 @@ float currentPressurePascal;
 
 void updateScreen()
 {
-  display.fillScreen(WHITE);
+  display.drawBitmap(images.background.color, 0, 0, 400, 300, COLOR, display.bm_invert);
+  display.drawBitmap(images.background.black, 0, 0, 400, 300, BLACK, display.bm_invert | display.bm_transparent);
+
+  // Time
+  display.setFont(&NotoSans_Bold30pt7b);
+  display.setTextColor(COLOR);
+  display.setCursor(128, 51);
+  display.printf("13:37");
+
+  // Date
+  display.setFont(&NotoSans_Bold13pt8b);
+  display.setTextColor(BLACK);
+  display.setCursor(3, 82);
+  display.printf("Samstag, 11. Dezember 2020");
 
   // current values
-  display.setFont(&FreeSansBold14pt8b);
+  display.setFont(&NotoSans_Bold20pt7b);
+  display.setTextColor(WHITE);
+  display.setCursor(48, 126);
+  display.printf("%.1f", currentTemperatureCelsius);
+
   display.setTextColor(BLACK);
-  display.setCursor(35, 282);
-  display.printf("%.1f\xb0"
-                 "C",
-                 currentTemperatureCelsius);
-  display.setCursor(180, 282);
-  display.printf("%.0f%%", currentHumidityPercent);
-  display.setCursor(290, 282);
-  display.printf("%.0f hPa", currentPressurePascal / 100);
+  display.setCursor(95, 227);
+  display.printf("%.0f", currentHumidityPercent);
+  display.setCursor(48, 280);
+  display.printf("%.0f", currentPressurePascal / 100);
 
   // Linecharts
   // Y-Axis Labels
-  display.setFont(&Org_01);
-  display.setTextColor(BLACK);
-  display.setCursor(2, 165);
-  display.printf("%.1f", tempStats.max);
-  display.setCursor(2, 254);
-  display.printf("%.1f", tempStats.min);
+  // display.setFont(&Org_01);
+  // display.setTextColor(BLACK);
+  // display.setCursor(2, 165);
+  // display.printf("%.1f", tempStats.max);
+  // display.setCursor(2, 254);
+  // display.printf("%.1f", tempStats.min);
 
-  display.setCursor(135, 165);
-  display.printf("%.0f", humStats.max);
-  display.setCursor(135, 254);
-  display.printf("%.0f", humStats.min);
+  // display.setCursor(135, 165);
+  // display.printf("%.0f", humStats.max);
+  // display.setCursor(135, 254);
+  // display.printf("%.0f", humStats.min);
 
-  display.setCursor(268, 165);
-  display.printf("%.1f", pressStats.max);
-  display.setCursor(268, 254);
-  display.printf("%.1f", pressStats.min);
-
-  // Frame
-  display.drawFastHLine(0, 159, 400, BLACK);
-  display.drawFastHLine(0, 256, 400, BLACK);
-  display.drawFastVLine(133, 159, 97, BLACK);
-  display.drawFastVLine(266, 159, 97, BLACK);
+  // display.setCursor(268, 165);
+  // display.printf("%.1f", pressStats.max);
+  // display.setCursor(268, 254);
+  // display.printf("%.1f", pressStats.min);
 
   // Charts
-  chart.lineChart(&display, &tempStats, 0, 160, 130, 95, BLACK);
-  chart.lineChart(&display, &humStats, 135, 160, 130, 95, BLACK);
-  chart.lineChart(&display, &pressStats, 270, 160, 130, 95, BLACK);
+  chart.lineChart(&display, &tempStats, 170, 92, 230, 88, COLOR);
+  chart.lineChart(&display, &humStats, 170, 190, 230, 44, BLACK);
+  chart.lineChart(&display, &pressStats, 170, 242, 230, 44, BLACK);
 
   // Uptime and Memory stats
   display.setFont(&Org_01);
-  display.fillRect(0, 292, 400, 299, BLACK);
-  display.setTextColor(WHITE);
+  display.setTextColor(BLACK);
   display.setCursor(0, 298);
   display.printf("Free: %uK (%uK)  Temp: %u (%uB)  Hum: %u (%uB) Press: %u (%uB) Up: %us",
                  ESP.getFreeHeap() / 1024,
@@ -178,7 +183,7 @@ void setup()
     initStage++;
     // Setup Environment Sensor
     bme.setSampling(Adafruit_BME280::MODE_NORMAL,     /* Operating Mode. */
-                    Adafruit_BME280::SAMPLING_X2,     /* Temp. oversampling */
+                    Adafruit_BME280::SAMPLING_X16,    /* Temp. oversampling */
                     Adafruit_BME280::SAMPLING_X16,    /* Hum. oversampling */
                     Adafruit_BME280::SAMPLING_X16,    /* Pressure oversampling */
                     Adafruit_BME280::FILTER_X16,      /* Filtering. */
@@ -192,16 +197,55 @@ void setup()
   initStage++;
 
   Serial.println("[  INIT  ] setup ePaper display");
-  delay(100);               // wait a bit, before display-class starts writing to serial out
-  display.init(115200U);     // uncomment serial speed definition for debug output
-  io.setFrequency(500000U); // set to 500kHz; the default setting (4MHz) could be unreliable with active modem and unshielded wiring
+  delay(100);                // wait a bit, before display-class starts writing to serial out
+  display.init(/*115200U*/); // uncomment serial speed definition for debug output
+  io.setFrequency(500000U);  // set to 500kHz; the default setting (4MHz) could be unreliable with active modem and unshielded wiring
   delay(100);
   initStage++;
 
-  //Initialize Ticker every 1s
+  //Initialize File System
+  if (LittleFS.begin())
+  {
+    FSInfo fsInfo;
+    LittleFS.info(fsInfo);
+    Serial.printf("[  INIT  ] LittleFS initialized (Total=%u KiB  Free=%u KiB  maxPathLength=%u)\n",
+                  fsInfo.totalBytes / 1024,
+                  (fsInfo.totalBytes - fsInfo.usedBytes) / 1024,
+                  fsInfo.maxPathLength);
+
+    // Open dir folder
+    Dir dir = LittleFS.openDir("/");
+    // Cycle all the content
+    while (dir.next())
+    {
+      // get filename
+      Serial.print("[  INIT  ] ");
+      Serial.print(dir.fileName());
+      Serial.print(" - ");
+      // If element have a size display It else write 0
+      if (dir.fileSize())
+      {
+        File f = dir.openFile("r");
+        Serial.println(f.size());
+        f.close();
+      }
+      else
+      {
+        Serial.println("0");
+      }
+    }
+  }
+  else
+  {
+    Serial.println("[  INIT  ] LittleFS initialization failed");
+  }
+  initStage++;
+
+  //Initialize uptime calculation
   timer1_attachInterrupt(onTimerISR);
   timer1_enable(TIM_DIV256, TIM_EDGE, TIM_SINGLE);
   timer1_write(312500U); // 1s
+  initStage++;
 
   Serial.printf("[  INIT  ] Completed at stage %u\n\n", initStage);
 }
