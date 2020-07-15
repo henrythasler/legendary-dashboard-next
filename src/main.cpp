@@ -66,10 +66,10 @@ GxEPD_Class display(io, /*RST=D4*/ 16, /*BUSY=D6*/ 12);
 
 // Statistics Helper-Class
 #include <timeseries.h>
-Timeseries tempStats(1000U);
-Timeseries humStats(1000U);
-Timeseries pressStats(1000U);
-Timeseries outside(1000U);
+Timeseries insideTemp(1000U);
+Timeseries insideHum(1000U);
+Timeseries pressure(1000U);
+Timeseries outsideTemp(1000U);
 
 // uptime calculation
 #include <uptime.h>
@@ -116,7 +116,7 @@ void callback(char *topic, byte *payload, unsigned int length)
   message_buff[i] = 0;
   currentOutsideTemperatureCelsius = atof(message_buff);
   uint32_t timestamp = uptime.getSeconds();
-  outside.push(timestamp, currentOutsideTemperatureCelsius);
+  outsideTemp.push(timestamp, currentOutsideTemperatureCelsius);
   Serial.println();
 }
 
@@ -272,26 +272,28 @@ void updateScreen()
   // display.setFont(&Org_01);
   // display.setTextColor(BLACK);
   // display.setCursor(2, 165);
-  // display.printf("%.1f", tempStats.max);
+  // display.printf("%.1f", insideTemp.max);
   // display.setCursor(2, 254);
-  // display.printf("%.1f", tempStats.min);
+  // display.printf("%.1f", insideTemp.min);
 
   // display.setCursor(135, 165);
-  // display.printf("%.0f", humStats.max);
+  // display.printf("%.0f", insideHum.max);
   // display.setCursor(135, 254);
-  // display.printf("%.0f", humStats.min);
+  // display.printf("%.0f", insideHum.min);
 
   // display.setCursor(268, 165);
-  // display.printf("%.1f", pressStats.max);
+  // display.printf("%.1f", pressure.max);
   // display.setCursor(268, 254);
-  // display.printf("%.1f", pressStats.min);
+  // display.printf("%.1f", pressure.min);
+
+  float tempChartMin = min(insideTemp.min, outsideTemp.min) - 2;
+  float tempChartMax = max(insideTemp.max, outsideTemp.max) + 2;
 
   // Charts
-  chart.lineChart(&display, &tempStats, 170, 92, 230, 88, 1.5, COLOR, false, false, false, -10, 35);
-  chart.lineChart(&display, &outside, 170, 92, 230, 88, 1.5, BLACK, false, false, false, -10, 35);
-  chart.lineChart(&display, &humStats, 170, 190, 230, 44, 1.5, BLACK);
-  chart.lineChart(&display, &pressStats, 170, 242, 230, 44, 1.5, BLACK);
-
+  chart.lineChart(&display, &insideTemp, 170, 92, 230, 88, 1.8, COLOR, false, false, false, tempChartMin, tempChartMax);
+  chart.lineChart(&display, &outsideTemp, 170, 92, 230, 88, 1.8, BLACK, false, false, false, tempChartMin, tempChartMax);
+  chart.lineChart(&display, &insideHum, 170, 190, 230, 44, 1.8, BLACK);
+  chart.lineChart(&display, &pressure, 170, 242, 230, 44, 1.8, BLACK);
 
   // Uptime and Memory stats
   display.setFont(&Org_01);
@@ -300,12 +302,12 @@ void updateScreen()
   display.printf("Free: %uK (%uK)  Temp: %u (%uB)  Hum: %u (%uB) Press: %u (%uB) Up: %us",
                  ESP.getFreeHeap() / 1024,
                  ESP.getMaxFreeBlockSize() / 1024,
-                 tempStats.size(),
-                 sizeof(tempStats.data) + sizeof(Point) * tempStats.data.capacity(),
-                 humStats.size(),
-                 sizeof(humStats.data) + sizeof(Point) * humStats.data.capacity(),
-                 pressStats.size(),
-                 sizeof(pressStats.data) + sizeof(Point) * pressStats.data.capacity(),
+                 insideTemp.size(),
+                 sizeof(insideTemp.data) + sizeof(Point) * insideTemp.data.capacity(),
+                 insideHum.size(),
+                 sizeof(insideHum.data) + sizeof(Point) * insideHum.data.capacity(),
+                 pressure.size(),
+                 sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
                  uptimeSeconds);
 
   display.update();
@@ -362,22 +364,24 @@ void loop()
 
       // Serial.printf("Temp=%.1f°C  Hum=%.1f%%  Press=%.1fhPa\n", currentTemperatureCelsius, currentHumidityPercent, currentPressurePascal / 100.);
       // memory state
-      Serial.printf("[ STATUS ] Free: %u KiB (%u KiB)  Temp: %u (%u B)  Hum: %u (%u B) Press: %u (%u B) Uptime: %us\n",
+      Serial.printf("[ STATUS ] Free: %u KiB (%u KiB)  In: %u (%u B)  Out: %u (%u B)  Hum: %u (%u B) Press: %u (%u B) Uptime: %us\n",
                     ESP.getFreeHeap() / 1024,
                     ESP.getMaxFreeBlockSize() / 1024,
-                    tempStats.size(),
-                    sizeof(tempStats.data) + sizeof(Point) * tempStats.data.capacity(),
-                    humStats.size(),
-                    sizeof(humStats.data) + sizeof(Point) * humStats.data.capacity(),
-                    pressStats.size(),
-                    sizeof(pressStats.data) + sizeof(Point) * pressStats.data.capacity(),
+                    insideTemp.size(),
+                    sizeof(insideTemp.data) + sizeof(Point) * insideTemp.data.capacity(),
+                    outsideTemp.size(),
+                    sizeof(outsideTemp.data) + sizeof(Point) * outsideTemp.data.capacity(),
+                    insideHum.size(),
+                    sizeof(insideHum.data) + sizeof(Point) * insideHum.data.capacity(),
+                    pressure.size(),
+                    sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
                     uptimeSeconds);
 
       // update statistics for each measurement
       uint32_t timestamp = uptime.getSeconds();
-      tempStats.push(timestamp, currentTemperatureCelsius);
-      humStats.push(timestamp, currentHumidityPercent);
-      pressStats.push(timestamp, currentPressurePascal / 100.); // use hPa
+      insideTemp.push(timestamp, currentTemperatureCelsius);
+      insideHum.push(timestamp, currentHumidityPercent);
+      pressure.push(timestamp, currentPressurePascal / 100.); // use hPa
     }
   }
 
@@ -388,16 +392,18 @@ void loop()
     if (counter300s > 0) // don't trim/compact on startup
     {
       // RAM is limited so we cut off the timeseries after x days
-      tempStats.trim(uptime.getSeconds(), 7 * 24 * 3600);
-      humStats.trim(uptime.getSeconds(), 7 * 24 * 3600);
-      pressStats.trim(uptime.getSeconds(), 7 * 24 * 3600);
+      insideTemp.trim(uptime.getSeconds(), 2 * 24 * 3600);
+      insideHum.trim(uptime.getSeconds(), 2 * 24 * 3600);
+      pressure.trim(uptime.getSeconds(), 2 * 24 * 3600);
+      outsideTemp.trim(uptime.getSeconds(), 2 * 24 * 3600);
 
       // FIXME: Filter high-frequency noise somehow
 
       // apply compression (Ramer-Douglas-Peucker)
-      tempStats.compact(0.03);
-      humStats.compact(0.2);
-      pressStats.compact(0.05);
+      insideTemp.compact(0.2);
+      insideHum.compact(0.2);
+      pressure.compact(0.1);
+      outsideTemp.compact(0.2);
     }
 
     if (true)

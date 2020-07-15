@@ -15,11 +15,12 @@ An e-paper dashboard in a photo frame to show environment information.
 
 ## References
 
-### Arduino, ESP8266
+### Arduino, ESP8266, ESP32
 
 - [ESP8266 Pinout Reference](https://randomnerdtutorials.com/esp8266-pinout-reference-gpios/)
 - [ESP8266 Timer and Ticker Example](https://circuits4you.com/2018/01/02/esp8266-timer-ticker-example/)
 - [Renzo Mischianti - LittleFS File System](https://www.mischianti.org/2020/06/22/wemos-d1-mini-esp8266-integrated-littlefs-filesystem-part-5/)
+- [Getting Started with the ESP32 Development Board](https://randomnerdtutorials.com/getting-started-with-esp32/)
 
 ### Graphics, Artwork
 

@@ -201,7 +201,7 @@ int32_t Timeseries::trim(uint32_t currentTimeSeconds, uint32_t maxAgeSeconds)
         i++;
       }
       removedEntries = i - data.begin();
-      // data.erase(data.begin(), i);
+      data.erase(data.begin(), i);
     }
   }
 //   catch (const std::exception &e)
