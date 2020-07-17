@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <LittleFS.h>
+// #include <LittleFS.h>
 
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
 #include <PubSubClient.h>
 
 /**
@@ -34,21 +34,8 @@ bool environmentSensorAvailable = false;
 #include <GxIO/GxIO_SPI/GxIO_SPI.h>
 #include <GxIO/GxIO.h>
 
-// #define PIN_SPI_SS   (15)
-// #define PIN_SPI_MOSI (13)
-// #define PIN_SPI_MISO (12)
-// #define PIN_SPI_SCK  (14)
-
-// MISO=D6 (GPIO12)
-
-// SS=D8 (GPIO15) = CS
-// MOSI=D7 (GPIO13) = DIN
-// SCK=D5 (GPIO14) = CLK
-// D0 (GPIO16) = RST
-// D3 (GPIO0) = DC
-// D6 (GPIO12) = BUSY
-
-GxIO_Class io(SPI, /*CS=D8*/ SS, /*DC=D3*/ 0, /*RST=D4*/ 16);
+SPIClass DisplaySPI(VSPI);
+GxIO_Class io(DisplaySPI, /*CS=VSPI_CS0*/ 5, /*DC=D3*/ 0, /*RST=D4*/ 16);
 GxEPD_Class display(io, /*RST=D4*/ 16, /*BUSY=D6*/ 12);
 #define BLACK (0x0000)
 #define WHITE (0xFFFF)
@@ -95,11 +82,6 @@ float currentHumidityPercent;
 float currentPressurePascal;
 float currentOutsideTemperatureCelsius;
 
-void ICACHE_RAM_ATTR onTimerISR()
-{
-  uptimeSeconds++;
-  timer1_write(312500U); // 1s
-}
 
 char message_buff[100];
 void callback(char *topic, byte *payload, unsigned int length)
@@ -184,50 +166,6 @@ void setup()
   delay(100);
   initStage++;
 
-  //Initialize File System
-  if (LittleFS.begin())
-  {
-    FSInfo fsInfo;
-    LittleFS.info(fsInfo);
-    Serial.printf("[  INIT  ] LittleFS initialized (Total=%u KiB  Free=%u KiB  maxPathLength=%u)\n",
-                  fsInfo.totalBytes / 1024,
-                  (fsInfo.totalBytes - fsInfo.usedBytes) / 1024,
-                  fsInfo.maxPathLength);
-
-    // Open dir folder
-    Dir dir = LittleFS.openDir("/");
-    // Cycle all the content
-    while (dir.next())
-    {
-      // get filename
-      Serial.print("[  INIT  ] ");
-      Serial.print(dir.fileName());
-      Serial.print(" - ");
-      // If element have a size display It else write 0
-      if (dir.fileSize())
-      {
-        File f = dir.openFile("r");
-        Serial.println(f.size());
-        f.close();
-      }
-      else
-      {
-        Serial.println("0");
-      }
-    }
-  }
-  else
-  {
-    Serial.println("[  INIT  ] LittleFS initialization failed");
-  }
-  initStage++;
-
-  //Initialize uptime calculation
-  timer1_attachInterrupt(onTimerISR);
-  timer1_enable(TIM_DIV256, TIM_EDGE, TIM_SINGLE);
-  timer1_write(312500U); // 1s
-  initStage++;
-
   Serial.println("[  INIT  ] Connecting to MQTT-Server...");
   mqttClient.setServer(server, 1883);
   mqttClient.setCallback(callback);
@@ -299,24 +237,24 @@ void updateScreen()
   display.setFont(&Org_01);
   display.setTextColor(BLACK);
   display.setCursor(0, 298);
-  display.printf("Free: %uK (%uK)  Temp: %u (%uB)  Hum: %u (%uB) Press: %u (%uB) Up: %us",
+  display.printf("Free: %uK (%uK)  Temp: %u (%uB)  Hum: %u (%uB) Press: %u (%uB) Up: %" PRIi64 "s",
                  ESP.getFreeHeap() / 1024,
-                 ESP.getMaxFreeBlockSize() / 1024,
+                 ESP.getMaxAllocHeap() / 1024,
                  insideTemp.size(),
                  sizeof(insideTemp.data) + sizeof(Point) * insideTemp.data.capacity(),
                  insideHum.size(),
                  sizeof(insideHum.data) + sizeof(Point) * insideHum.data.capacity(),
                  pressure.size(),
                  sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
-                 uptimeSeconds);
+                 (esp_timer_get_time() / 1000000LL));
 
-  display.update();
+  // display.update();
 }
 
 void reconnect()
 {
   Serial.print("[  MQTT  ] Attempting MQTT connection... ");
-  if (mqttClient.connect(WiFi.hostname().c_str()))
+  if (mqttClient.connect(WiFi.getHostname()))
   {
     Serial.println("connected");
     mqttClient.subscribe("home/out/temp/value");
@@ -364,9 +302,9 @@ void loop()
 
       // Serial.printf("Temp=%.1f°C  Hum=%.1f%%  Press=%.1fhPa\n", currentTemperatureCelsius, currentHumidityPercent, currentPressurePascal / 100.);
       // memory state
-      Serial.printf("[ STATUS ] Free: %u KiB (%u KiB)  In: %u (%u B)  Out: %u (%u B)  Hum: %u (%u B) Press: %u (%u B) Uptime: %us\n",
+      Serial.printf("[ STATUS ] Free: %u KiB (%u KiB)  In: %u (%u B)  Out: %u (%u B)  Hum: %u (%u B) Press: %u (%u B) Uptime: %" PRIi64 "s\n",
                     ESP.getFreeHeap() / 1024,
-                    ESP.getMaxFreeBlockSize() / 1024,
+                    ESP.getMaxAllocHeap() / 1024,
                     insideTemp.size(),
                     sizeof(insideTemp.data) + sizeof(Point) * insideTemp.data.capacity(),
                     outsideTemp.size(),
@@ -375,7 +313,7 @@ void loop()
                     sizeof(insideHum.data) + sizeof(Point) * insideHum.data.capacity(),
                     pressure.size(),
                     sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
-                    uptimeSeconds);
+                    (esp_timer_get_time() / 1000000LL));
 
       // update statistics for each measurement
       uint32_t timestamp = uptime.getSeconds();

@@ -13,7 +13,7 @@ bool Timeseries::push(float timestamp, float value)
   min = value < min ? value : min;
   max = value > max ? value : max;
 
-  // try
+  try
   {
     if (data.size() >= maxHistoryLength)
     {
@@ -26,15 +26,15 @@ bool Timeseries::push(float timestamp, float value)
       updateStats();
   }
   // this could be out-of-memory situations or the block size is too big to be allocated
-//   catch (const exception &e)
-//   {
-// #ifdef ARDUINO
-//     Serial.printf("[ ERROR ] Timeseries::push(): %s\n", e.what());
-// #else
-//     printf("Error in Timeseries::push(): %s\n", e.what());
-// #endif
-//     return false;
-//   }
+  catch (const exception &e)
+  {
+#ifdef ARDUINO
+    Serial.printf("[ ERROR ] Timeseries::push(): %s\n", e.what());
+#else
+    printf("Error in Timeseries::push(): %s\n", e.what());
+#endif
+    return false;
+  }
 
   return true;
 }
@@ -165,22 +165,22 @@ int32_t Timeseries::compact(float epsilon)
 
   if (data.size())
   {
-    // try
+    try
     {
       ramerDouglasPeucker(data, epsilon, pointListOut);
       removedEntries = data.size() - pointListOut.size();
       data.assign(pointListOut.begin(), pointListOut.end());
       data.shrink_to_fit();
     }
-//     catch (const std::exception &e)
-//     {
-// #ifdef ARDUINO
-//       Serial.printf("[ ERROR ] Timeseries::compact(%f): %s\n", epsilon, e.what());
-// #else
-//       printf("Error in Timeseries::compact(%f): %s\n", epsilon, e.what());
-// #endif
-//       removedEntries = -1;
-//     }
+    catch (const std::exception &e)
+    {
+#ifdef ARDUINO
+      Serial.printf("[ ERROR ] Timeseries::compact(%f): %s\n", epsilon, e.what());
+#else
+      printf("Error in Timeseries::compact(%f): %s\n", epsilon, e.what());
+#endif
+      removedEntries = -1;
+    }
   }
   return removedEntries;
 }
@@ -191,7 +191,7 @@ int32_t Timeseries::compact(float epsilon)
 int32_t Timeseries::trim(uint32_t currentTimeSeconds, uint32_t maxAgeSeconds)
 {
   int32_t removedEntries = 0;
-  // try
+  try
   {
     if (data.size())
     {
@@ -204,15 +204,15 @@ int32_t Timeseries::trim(uint32_t currentTimeSeconds, uint32_t maxAgeSeconds)
       data.erase(data.begin(), i);
     }
   }
-//   catch (const std::exception &e)
-//   {
-// #ifdef ARDUINO
-//     Serial.printf("[ ERROR ] Timeseries::trim(%u, %u): %s\n", currentTimeSeconds, maxAgeSeconds, e.what());
-//     removedEntries = -1;
-// #else
-//     printf("[ ERROR ] Timeseries::trim(%u, %u): %s\n", currentTimeSeconds, maxAgeSeconds, e.what());
-// #endif
-//   }
+  catch (const std::exception &e)
+  {
+#ifdef ARDUINO
+    Serial.printf("[ ERROR ] Timeseries::trim(%u, %u): %s\n", currentTimeSeconds, maxAgeSeconds, e.what());
+    removedEntries = -1;
+#else
+    printf("[ ERROR ] Timeseries::trim(%u, %u): %s\n", currentTimeSeconds, maxAgeSeconds, e.what());
+#endif
+  }
 
   return removedEntries;
 }
@@ -225,7 +225,7 @@ void Timeseries::movingAverage(int32_t samples)
 {
   vector<Point> tmp = data;
   float div = 1.;
-  // try
+  try
   {
     for (int32_t i = 0; i < int32_t(data.size()); i++)
     {
@@ -243,12 +243,12 @@ void Timeseries::movingAverage(int32_t samples)
       data.at(i).value /= div;
     }
   }
-//   catch (const std::exception &e)
-//   {
-// #ifdef ARDUINO
-//     Serial.printf("[ ERROR ] Timeseries::movingAverage(): %s\n", e.what());
-// #else
-//     printf("Error in Timeseries::movingAverage(): %s\n", e.what());
-// #endif
-//   }
+  catch (const std::exception &e)
+  {
+#ifdef ARDUINO
+    Serial.printf("[ ERROR ] Timeseries::movingAverage(): %s\n", e.what());
+#else
+    printf("Error in Timeseries::movingAverage(): %s\n", e.what());
+#endif
+  }
 }
