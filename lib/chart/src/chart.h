@@ -4,8 +4,7 @@
 #include <timeseries.h>
 
 #ifdef ARDUINO
-#include <GxEPD.h>
-#include <GxGDEW042Z15/GxGDEW042Z15.h> // 4.2" b/w/r
+#include <Adafruit_GFX.h>
 #endif
 
 using namespace std;
@@ -16,7 +15,7 @@ private:
 public:
     Chart(void);
 #ifdef ARDUINO
-    void lineChart(GxEPD_Class *display,
+    void lineChart(Adafruit_GFX *display,
                    Timeseries *timeseries,
                    uint16_t canvasLeft = 0,
                    uint16_t canvasTop = 0,
@@ -30,7 +29,7 @@ public:
                    float yAxisMin = 0,
                    float yAxisMax = 100);
 
-    void plotLineWidth(GxEPD_Class *display, int32_t x0, int32_t y0, int32_t x1, int32_t y1, float wd, uint16_t lineColor);
+    void plotLineWidth(Adafruit_GFX *display, int32_t x0, int32_t y0, int32_t x1, int32_t y1, float wd, uint16_t lineColor);
 #endif
 };
 #endif

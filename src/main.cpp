@@ -1,15 +1,14 @@
 #include <Arduino.h>
-#include <Wire.h>
-#include <LittleFS.h>
+// #include <LittleFS.h>
 
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
 #include <PubSubClient.h>
 
 /**
- * this file contains the following variables
- * const char *ssid = "test" // WiFi AP-Name
- * const char *password = "1234" // WiFi-password 
- * IPAddress server(192, 168, 0, 0); // MQTT-Server
+ * This file must contain the following variables:
+ *  const char *ssid = "test" // WiFi AP-Name
+ *  const char *password = "1234" // WiFi-password 
+ *  IPAddress server(192, 168, 0, 0); // MQTT-Server
  **/
 #include <secrets.h>
 
@@ -19,37 +18,21 @@ PubSubClient mqttClient(wifiClient);
 // Environment sensor includes and defines
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
+#define BME280_PIN_I2C_SCL (22)
+#define BME280_PIN_I2C_SDA (21)
 #define BME280_ADDR (0x76)
-#define BME280_PIN_VCC (2)
+#define BME280_PIN_VCC (4)
 #define PRESSURE_MEASUREMENT_CALIBRATION (6000)
 #define SEALEVEL_PRESSURE (1013.25)
 #define SEALEVEL_PRESSURE_CALIBRATION (9.65)
 
-Adafruit_BME280 bme; // use I2C
+TwoWire I2CBME = TwoWire(0); // set up a new Wire-Instance for BME280 Environment Sensor
+Adafruit_BME280 bme;         // use I2C
 bool environmentSensorAvailable = false;
 
 // Display stuff
-#include <GxEPD.h>
-#include <GxGDEW042Z15/GxGDEW042Z15.h> // 4.2" b/w/r
-#include <GxIO/GxIO_SPI/GxIO_SPI.h>
-#include <GxIO/GxIO.h>
-
-// #define PIN_SPI_SS   (15)
-// #define PIN_SPI_MOSI (13)
-// #define PIN_SPI_MISO (12)
-// #define PIN_SPI_SCK  (14)
-
-// MISO=D6 (GPIO12)
-
-// SS=D8 (GPIO15) = CS
-// MOSI=D7 (GPIO13) = DIN
-// SCK=D5 (GPIO14) = CLK
-// D0 (GPIO16) = RST
-// D3 (GPIO0) = DC
-// D6 (GPIO12) = BUSY
-
-GxIO_Class io(SPI, /*CS=D8*/ SS, /*DC=D3*/ 0, /*RST=D4*/ 16);
-GxEPD_Class display(io, /*RST=D4*/ 16, /*BUSY=D6*/ 12);
+#include <GxEPD2_3C.h>
+GxEPD2_3C<GxEPD2_420c, GxEPD2_420c::HEIGHT> display(GxEPD2_420c(/*CS=VSPI_CS0=D5*/ 5, /*DC=D17*/ 17, /*RST=D16*/ 16, /*BUSY=D15*/ 15));
 #define BLACK (0x0000)
 #define WHITE (0xFFFF)
 #define COLOR (0xF800)
@@ -88,18 +71,10 @@ uint32_t counter300s = 0;
 uint32_t counter1h = 0;
 uint32_t initStage = 0;
 
-uint32_t uptimeSeconds = 0;
-
 float currentTemperatureCelsius;
 float currentHumidityPercent;
 float currentPressurePascal;
 float currentOutsideTemperatureCelsius;
-
-void ICACHE_RAM_ATTR onTimerISR()
-{
-  uptimeSeconds++;
-  timer1_write(312500U); // 1s
-}
 
 char message_buff[100];
 void callback(char *topic, byte *payload, unsigned int length)
@@ -123,6 +98,11 @@ void callback(char *topic, byte *payload, unsigned int length)
 // run once on startup
 void setup()
 {
+  // LED output
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
+  initStage++;
+
   // Setup serial connection for debugging
   Serial.begin(115200U);
   delay(500);
@@ -135,10 +115,16 @@ void setup()
   WiFi.begin(ssid, password);
 
   //check wi-fi is connected to wi-fi network
+  int retries = 5;
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(1000);
     Serial.print(".");
+    retries--;
+    if (retries <= 0)
+    {
+      ESP.restart();
+    }
   }
   Serial.print(" connected!");
   Serial.print(" (IP=");
@@ -152,11 +138,23 @@ void setup()
   initStage++;
 
   // Initialize Environment Sensor
-  if (bme.begin(BME280_ADDR, &Wire)) // use custom Wire-Instance to avoid interference with other libraries.
+  if (I2CBME.begin(BME280_PIN_I2C_SDA, BME280_PIN_I2C_SCL, 250000U)) // set I2C-Clock to 250kHz
   {
     initStage++;
-    environmentSensorAvailable = true;
-    Serial.println("[  INIT  ] found BME280 environment sensor");
+    if (bme.begin(BME280_ADDR, &I2CBME)) // use custom Wire-Instance to avoid interference with other libraries.
+    {
+      initStage++;
+      environmentSensorAvailable = true;
+      Serial.println("[  INIT  ] found BME280 environment sensor");
+    }
+    else
+    {
+      Serial.println("[ ERROR  ] Could not find a BME280 sensor, check wiring!");
+    }
+  }
+  else
+  {
+    Serial.println("[ ERROR  ] Could not setup I2C Interface!");
   }
 
   if (environmentSensorAvailable)
@@ -171,61 +169,11 @@ void setup()
                     Adafruit_BME280::STANDBY_MS_500); /* Standby time. */
     Serial.println("[  INIT  ] BME280 setup done");
   }
-  else
-  {
-    Serial.println("[ ERROR  ] Could not find a BME280 sensor, check wiring!");
-  }
-  initStage++;
 
   Serial.println("[  INIT  ] setup ePaper display");
   delay(100);                // wait a bit, before display-class starts writing to serial out
   display.init(/*115200U*/); // uncomment serial speed definition for debug output
-  io.setFrequency(500000U);  // set to 500kHz; the default setting (4MHz) could be unreliable with active modem and unshielded wiring
   delay(100);
-  initStage++;
-
-  //Initialize File System
-  if (LittleFS.begin())
-  {
-    FSInfo fsInfo;
-    LittleFS.info(fsInfo);
-    Serial.printf("[  INIT  ] LittleFS initialized (Total=%u KiB  Free=%u KiB  maxPathLength=%u)\n",
-                  fsInfo.totalBytes / 1024,
-                  (fsInfo.totalBytes - fsInfo.usedBytes) / 1024,
-                  fsInfo.maxPathLength);
-
-    // Open dir folder
-    Dir dir = LittleFS.openDir("/");
-    // Cycle all the content
-    while (dir.next())
-    {
-      // get filename
-      Serial.print("[  INIT  ] ");
-      Serial.print(dir.fileName());
-      Serial.print(" - ");
-      // If element have a size display It else write 0
-      if (dir.fileSize())
-      {
-        File f = dir.openFile("r");
-        Serial.println(f.size());
-        f.close();
-      }
-      else
-      {
-        Serial.println("0");
-      }
-    }
-  }
-  else
-  {
-    Serial.println("[  INIT  ] LittleFS initialization failed");
-  }
-  initStage++;
-
-  //Initialize uptime calculation
-  timer1_attachInterrupt(onTimerISR);
-  timer1_enable(TIM_DIV256, TIM_EDGE, TIM_SINGLE);
-  timer1_write(312500U); // 1s
   initStage++;
 
   Serial.println("[  INIT  ] Connecting to MQTT-Server...");
@@ -238,8 +186,9 @@ void setup()
 
 void updateScreen()
 {
-  display.drawBitmap(images.background.color, 0, 0, 400, 300, COLOR, display.bm_invert);
-  display.drawBitmap(images.background.black, 0, 0, 400, 300, BLACK, display.bm_invert | display.bm_transparent);
+  display.fillScreen(GxEPD_WHITE);
+  display.drawBitmap(0, 0, images.background.color, display.epd2.WIDTH, display.epd2.HEIGHT, COLOR);
+  display.drawBitmap(0, 0, images.background.black, display.epd2.WIDTH, display.epd2.HEIGHT, BLACK);
 
   // Time
   display.setFont(&NotoSans_Bold30pt7b);
@@ -268,26 +217,26 @@ void updateScreen()
   display.printf("%.0f", currentPressurePascal / 100);
 
   // Linecharts
-  // Y-Axis Labels
-  // display.setFont(&Org_01);
-  // display.setTextColor(BLACK);
-  // display.setCursor(2, 165);
-  // display.printf("%.1f", insideTemp.max);
-  // display.setCursor(2, 254);
-  // display.printf("%.1f", insideTemp.min);
-
-  // display.setCursor(135, 165);
-  // display.printf("%.0f", insideHum.max);
-  // display.setCursor(135, 254);
-  // display.printf("%.0f", insideHum.min);
-
-  // display.setCursor(268, 165);
-  // display.printf("%.1f", pressure.max);
-  // display.setCursor(268, 254);
-  // display.printf("%.1f", pressure.min);
-
   float tempChartMin = min(insideTemp.min, outsideTemp.min) - 2;
   float tempChartMax = max(insideTemp.max, outsideTemp.max) + 2;
+
+  // Y-Axis Labels
+  display.setFont(&Org_01);
+  display.setTextColor(BLACK);
+  display.setCursor(172, 92 + 6);
+  display.printf("%.1f", tempChartMax);
+  display.setCursor(172, 92 + 88 - 3);
+  display.printf("%.1f", tempChartMin);
+
+  display.setCursor(172, 190 + 6);
+  display.printf("%.0f", insideHum.max);
+  display.setCursor(172, 190 + 44 - 3);
+  display.printf("%.0f", insideHum.min);
+
+  display.setCursor(172, 242 + 6);
+  display.printf("%.1f", pressure.max);
+  display.setCursor(172, 242 + 44 - 3);
+  display.printf("%.1f", pressure.min);
 
   // Charts
   chart.lineChart(&display, &insideTemp, 170, 92, 230, 88, 1.8, COLOR, false, false, false, tempChartMin, tempChartMax);
@@ -299,24 +248,24 @@ void updateScreen()
   display.setFont(&Org_01);
   display.setTextColor(BLACK);
   display.setCursor(0, 298);
-  display.printf("Free: %uK (%uK)  Temp: %u (%uB)  Hum: %u (%uB) Press: %u (%uB) Up: %us",
+  display.printf("Free: %uK (%uK)  Temp: %u (%uB)  Hum: %u (%uB) Press: %u (%uB) Up: %" PRIi64 "s",
                  ESP.getFreeHeap() / 1024,
-                 ESP.getMaxFreeBlockSize() / 1024,
+                 ESP.getMaxAllocHeap() / 1024,
                  insideTemp.size(),
                  sizeof(insideTemp.data) + sizeof(Point) * insideTemp.data.capacity(),
                  insideHum.size(),
                  sizeof(insideHum.data) + sizeof(Point) * insideHum.data.capacity(),
                  pressure.size(),
                  sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
-                 uptimeSeconds);
+                 (esp_timer_get_time() / 1000000LL));
 
-  display.update();
+  display.display(false);
 }
 
 void reconnect()
 {
   Serial.print("[  MQTT  ] Attempting MQTT connection... ");
-  if (mqttClient.connect(WiFi.hostname().c_str()))
+  if (mqttClient.connect(WiFi.getHostname()))
   {
     Serial.println("connected");
     mqttClient.subscribe("home/out/temp/value");
@@ -334,6 +283,7 @@ void loop()
   // 100ms Tasks
   if (!(counterBase % (100L / SCHEDULER_MAIN_LOOP_MS)))
   {
+    digitalWrite(LED_BUILTIN, HIGH); // regularly turn on LED
     mqttClient.loop();
   }
 
@@ -345,6 +295,8 @@ void loop()
   // 2s Tasks
   if (!(counterBase % (2000L / SCHEDULER_MAIN_LOOP_MS)))
   {
+    // indicate alive
+    digitalWrite(LED_BUILTIN, LOW);
   }
 
   // 30s Tasks
@@ -362,27 +314,26 @@ void loop()
       currentHumidityPercent = bme.readHumidity();
       currentPressurePascal = bme.readPressure() + PRESSURE_MEASUREMENT_CALIBRATION;
 
-      // Serial.printf("Temp=%.1f°C  Hum=%.1f%%  Press=%.1fhPa\n", currentTemperatureCelsius, currentHumidityPercent, currentPressurePascal / 100.);
-      // memory state
-      Serial.printf("[ STATUS ] Free: %u KiB (%u KiB)  In: %u (%u B)  Out: %u (%u B)  Hum: %u (%u B) Press: %u (%u B) Uptime: %us\n",
-                    ESP.getFreeHeap() / 1024,
-                    ESP.getMaxFreeBlockSize() / 1024,
-                    insideTemp.size(),
-                    sizeof(insideTemp.data) + sizeof(Point) * insideTemp.data.capacity(),
-                    outsideTemp.size(),
-                    sizeof(outsideTemp.data) + sizeof(Point) * outsideTemp.data.capacity(),
-                    insideHum.size(),
-                    sizeof(insideHum.data) + sizeof(Point) * insideHum.data.capacity(),
-                    pressure.size(),
-                    sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
-                    uptimeSeconds);
-
       // update statistics for each measurement
       uint32_t timestamp = uptime.getSeconds();
       insideTemp.push(timestamp, currentTemperatureCelsius);
       insideHum.push(timestamp, currentHumidityPercent);
       pressure.push(timestamp, currentPressurePascal / 100.); // use hPa
     }
+
+    // memory state
+    Serial.printf("[ STATUS ] Free: %u KiB (%u KiB)  In: %u (%u B)  Out: %u (%u B)  Hum: %u (%u B) Press: %u (%u B) Uptime: %" PRIi64 "s\n",
+                  ESP.getFreeHeap() / 1024,
+                  ESP.getMaxAllocHeap() / 1024,
+                  insideTemp.size(),
+                  sizeof(insideTemp.data) + sizeof(Point) * insideTemp.data.capacity(),
+                  outsideTemp.size(),
+                  sizeof(outsideTemp.data) + sizeof(Point) * outsideTemp.data.capacity(),
+                  insideHum.size(),
+                  sizeof(insideHum.data) + sizeof(Point) * insideHum.data.capacity(),
+                  pressure.size(),
+                  sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
+                  (esp_timer_get_time() / 1000000LL));
   }
 
   // 300s Tasks

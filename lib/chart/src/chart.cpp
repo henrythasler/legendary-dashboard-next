@@ -5,7 +5,7 @@ Chart::Chart(void)
 }
 
 #ifdef ARDUINO
-void Chart::lineChart(GxEPD_Class *display,
+void Chart::lineChart(Adafruit_GFX *display,
                       Timeseries *timeseries,
                       uint16_t canvasLeft,
                       uint16_t canvasTop,
@@ -56,7 +56,7 @@ void Chart::lineChart(GxEPD_Class *display,
 }
 
 // from: http://members.chello.at/~easyfilter/bresenham.html
-void Chart::plotLineWidth(GxEPD_Class *display, int32_t x0, int32_t y0, int32_t x1, int32_t y1, float wd, uint16_t lineColor)
+void Chart::plotLineWidth(Adafruit_GFX *display, int32_t x0, int32_t y0, int32_t x1, int32_t y1, float wd, uint16_t lineColor)
 {
     int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
     int dy = abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
