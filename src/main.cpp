@@ -6,10 +6,10 @@
 #include <PubSubClient.h>
 
 /**
- * this file contains the following variables
- * const char *ssid = "test" // WiFi AP-Name
- * const char *password = "1234" // WiFi-password 
- * IPAddress server(192, 168, 0, 0); // MQTT-Server
+ * This file must contain the following variables:
+ *  const char *ssid = "test" // WiFi AP-Name
+ *  const char *password = "1234" // WiFi-password 
+ *  IPAddress server(192, 168, 0, 0); // MQTT-Server
  **/
 #include <secrets.h>
 
@@ -34,9 +34,9 @@ bool environmentSensorAvailable = false;
 #include <GxIO/GxIO_SPI/GxIO_SPI.h>
 #include <GxIO/GxIO.h>
 
-SPIClass DisplaySPI(VSPI);
-GxIO_Class io(DisplaySPI, /*CS=VSPI_CS0*/ 5, /*DC=D3*/ 0, /*RST=D4*/ 16);
-GxEPD_Class display(io, /*RST=D4*/ 16, /*BUSY=D6*/ 12);
+SPIClass DisplaySPI(VSPI); // CLK=VSPI_CLK=D18, MOSI=VSPI_MOSI=D23, MISO=D19, CS=VSPI_CS0=D5
+GxIO_Class io(DisplaySPI, /*CS=VSPI_CS0=D5*/ 5, /*DC=D17*/ 17, /*RST=D16*/ 16);
+GxEPD_Class display(io, /*RST=D16*/ 16, /*BUSY=D15*/ 15);
 #define BLACK (0x0000)
 #define WHITE (0xFFFF)
 #define COLOR (0xF800)
@@ -75,13 +75,10 @@ uint32_t counter300s = 0;
 uint32_t counter1h = 0;
 uint32_t initStage = 0;
 
-uint32_t uptimeSeconds = 0;
-
 float currentTemperatureCelsius;
 float currentHumidityPercent;
 float currentPressurePascal;
 float currentOutsideTemperatureCelsius;
-
 
 char message_buff[100];
 void callback(char *topic, byte *payload, unsigned int length)
@@ -161,7 +158,7 @@ void setup()
 
   Serial.println("[  INIT  ] setup ePaper display");
   delay(100);                // wait a bit, before display-class starts writing to serial out
-  display.init(/*115200U*/); // uncomment serial speed definition for debug output
+  display.init(115200U); // uncomment serial speed definition for debug output
   io.setFrequency(500000U);  // set to 500kHz; the default setting (4MHz) could be unreliable with active modem and unshielded wiring
   delay(100);
   initStage++;
@@ -248,7 +245,7 @@ void updateScreen()
                  sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
                  (esp_timer_get_time() / 1000000LL));
 
-  // display.update();
+  display.update();
 }
 
 void reconnect()
@@ -272,6 +269,7 @@ void loop()
   // 100ms Tasks
   if (!(counterBase % (100L / SCHEDULER_MAIN_LOOP_MS)))
   {
+    digitalWrite(LED_BUILTIN, HIGH); // regularly turn on LED
     mqttClient.loop();
   }
 
@@ -283,6 +281,8 @@ void loop()
   // 2s Tasks
   if (!(counterBase % (2000L / SCHEDULER_MAIN_LOOP_MS)))
   {
+    // indicate alive
+    digitalWrite(LED_BUILTIN, LOW);
   }
 
   // 30s Tasks
