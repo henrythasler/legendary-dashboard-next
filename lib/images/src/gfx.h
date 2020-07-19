@@ -17,6 +17,6 @@ struct {
   Image background = Image(backgroundRed, backgroundBlack);
 } images;
 
-struct {
-} icons;
+// struct {
+// } icons;
 #endif

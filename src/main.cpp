@@ -130,6 +130,20 @@ void setup()
   Serial.print(" (IP=");
   Serial.print(WiFi.localIP());
   Serial.println(")");
+  initStage++;
+
+  // Clock setup
+  Serial.println("[  INIT  ] Clock synchronization");
+  uptime.setTime({tm_sec : 0, tm_min : 00, tm_hour : 00, tm_mday : 1, tm_mon : 1, tm_year : 2020 - 1900});
+
+  setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0", 1); //"Europe/Berlin"  from: http://www.famschmid.net/timezones.html
+  tzset();                                     // Assign the local timezone from setenv
+
+  setlocale (LC_TIME,"de_DE.UTF-8");
+
+  tm *tm = uptime.getTime();
+  Serial.printf("[  INIT  ] Current time is: %02d.%02d.%04d %02d:%02d:%02d\n", tm->tm_mday, tm->tm_mon, tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec);
+  initStage++;
 
   // Power-On Environment Sensor
   pinMode(BME280_PIN_VCC, OUTPUT);
@@ -191,16 +205,18 @@ void updateScreen()
   display.drawBitmap(0, 0, images.background.black, display.epd2.WIDTH, display.epd2.HEIGHT, BLACK);
 
   // Time
+  tm *tm = uptime.getTime();
   display.setFont(&NotoSans_Bold30pt7b);
   display.setTextColor(COLOR);
   display.setCursor(128, 51);
-  display.printf("13:37");
+  // display.printf("%02d:%02d", tm->tm_hour, tm->tm_min);
+  display.print(tm, "%H:%M");
 
   // Date
   display.setFont(&NotoSans_Bold13pt8b);
   display.setTextColor(BLACK);
   display.setCursor(3, 82);
-  display.printf("Samstag, 11. Dezember 2020");
+  display.print(tm, "%EA, %d. %EB %Y");
 
   // current values
   display.setFont(&NotoSans_Bold20pt7b);
