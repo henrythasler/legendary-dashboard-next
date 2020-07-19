@@ -110,26 +110,26 @@ void setup()
   Serial.println("[  INIT  ] Begin");
   initStage++;
 
-  // //connect to your local wi-fi network
-  // Serial.printf("[  INIT  ] Connecting to Wifi '%s'", ssid);
-  // WiFi.begin(ssid, password);
+  //connect to your local wi-fi network
+  Serial.printf("[  INIT  ] Connecting to Wifi '%s'", ssid);
+  WiFi.begin(ssid, password);
 
-  // //check wi-fi is connected to wi-fi network
-  // int retries = 5;
-  // while (WiFi.status() != WL_CONNECTED)
-  // {
-  //   delay(1000);
-  //   Serial.print(".");
-  //   retries--;
-  //   if (retries <= 0)
-  //   {
-  //     ESP.restart();
-  //   }
-  // }
-  // Serial.print(" connected!");
-  // Serial.print(" (IP=");
-  // Serial.print(WiFi.localIP());
-  // Serial.println(")");
+  //check wi-fi is connected to wi-fi network
+  int retries = 5;
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(1000);
+    Serial.print(".");
+    retries--;
+    if (retries <= 0)
+    {
+      ESP.restart();
+    }
+  }
+  Serial.print(" connected!");
+  Serial.print(" (IP=");
+  Serial.print(WiFi.localIP());
+  Serial.println(")");
 
   // Power-On Environment Sensor
   pinMode(BME280_PIN_VCC, OUTPUT);
@@ -171,16 +171,15 @@ void setup()
   }
 
   Serial.println("[  INIT  ] setup ePaper display");
-  delay(100);            // wait a bit, before display-class starts writing to serial out
-  display.init(115200U); // uncomment serial speed definition for debug output
-  // io.setFrequency(500000U);  // set to 500kHz; the default setting (4MHz) could be unreliable with active modem and unshielded wiring
+  delay(100);                // wait a bit, before display-class starts writing to serial out
+  display.init(/*115200U*/); // uncomment serial speed definition for debug output
   delay(100);
   initStage++;
 
-  // Serial.println("[  INIT  ] Connecting to MQTT-Server...");
-  // mqttClient.setServer(server, 1883);
-  // mqttClient.setCallback(callback);
-  // initStage++;
+  Serial.println("[  INIT  ] Connecting to MQTT-Server...");
+  mqttClient.setServer(server, 1883);
+  mqttClient.setCallback(callback);
+  initStage++;
 
   Serial.printf("[  INIT  ] Completed at stage %u\n\n", initStage);
 }
@@ -218,26 +217,26 @@ void updateScreen()
   display.printf("%.0f", currentPressurePascal / 100);
 
   // Linecharts
-  // Y-Axis Labels
-  // display.setFont(&Org_01);
-  // display.setTextColor(BLACK);
-  // display.setCursor(2, 165);
-  // display.printf("%.1f", insideTemp.max);
-  // display.setCursor(2, 254);
-  // display.printf("%.1f", insideTemp.min);
-
-  // display.setCursor(135, 165);
-  // display.printf("%.0f", insideHum.max);
-  // display.setCursor(135, 254);
-  // display.printf("%.0f", insideHum.min);
-
-  // display.setCursor(268, 165);
-  // display.printf("%.1f", pressure.max);
-  // display.setCursor(268, 254);
-  // display.printf("%.1f", pressure.min);
-
   float tempChartMin = min(insideTemp.min, outsideTemp.min) - 2;
   float tempChartMax = max(insideTemp.max, outsideTemp.max) + 2;
+
+  // Y-Axis Labels
+  display.setFont(&Org_01);
+  display.setTextColor(BLACK);
+  display.setCursor(172, 92 + 6);
+  display.printf("%.1f", tempChartMax);
+  display.setCursor(172, 92 + 88 - 3);
+  display.printf("%.1f", tempChartMin);
+
+  display.setCursor(172, 190 + 6);
+  display.printf("%.0f", insideHum.max);
+  display.setCursor(172, 190 + 44 - 3);
+  display.printf("%.0f", insideHum.min);
+
+  display.setCursor(172, 242 + 6);
+  display.printf("%.1f", pressure.max);
+  display.setCursor(172, 242 + 44 - 3);
+  display.printf("%.1f", pressure.min);
 
   // Charts
   chart.lineChart(&display, &insideTemp, 170, 92, 230, 88, 1.8, COLOR, false, false, false, tempChartMin, tempChartMax);
@@ -260,7 +259,7 @@ void updateScreen()
                  sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
                  (esp_timer_get_time() / 1000000LL));
 
-  // display.display(false);
+  display.display(false);
 }
 
 void reconnect()
@@ -303,10 +302,10 @@ void loop()
   // 30s Tasks
   if (!(counterBase % (30000L / SCHEDULER_MAIN_LOOP_MS)))
   {
-    // if (!mqttClient.connected())
-    // {
-    //   reconnect();
-    // }
+    if (!mqttClient.connected())
+    {
+      reconnect();
+    }
 
     if (environmentSensorAvailable)
     {

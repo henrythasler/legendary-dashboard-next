@@ -5,13 +5,13 @@ An e-paper dashboard in a photo frame to show environment information.
 
 ### Parts
 
-- [Wemos D1 mini ESP8266](https://www.ebay.com/itm/D1-Mini-NodeMcu-4M-bytes-Lua-WIFI-Development-Board-ESP8266-by-WeMos-TEUS/312715205793?epid=0&hash=item48cf475ca1:g:ixEAAOSwo7Zbzszs)
+- [ESP32 30-pin Dev Board](https://www.ebay.com/itm/ESP32-Dev-Board-NodeMCU-WROOM32-WiFi-WLAN-Bluetooth-Development/254138283456)
 - [Waveshare 4.2" 400×300 ePaper Display](https://www.berrybase.de/raspberry-pi-co/raspberry-pi/displays/4.2-400-215-300-epaper-display-modul-mit-spi-interface-dreifarbig-40-gelb-schwarz-wei-223?c=320&px=m)
 - [BME280 Breakout Board](https://www.berrybase.de/bauelemente/sensoren-module/feuchtigkeit/bme280-breakout-board-3in1-sensor-f-252-r-temperatur-luftfeuchtigkeit-und-luftdruck)
 
 ### Wire Diagram
 
-![Wire Diagram](docs/Wemos-D1-mini-bb.png)
+![Wire Diagram](docs/ESP32-Devkit-v1-30pin_bb.png)
 
 ## References
 
