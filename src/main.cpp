@@ -29,14 +29,8 @@ Adafruit_BME280 bme; // use I2C
 bool environmentSensorAvailable = false;
 
 // Display stuff
-#include <GxEPD.h>
-#include <GxGDEW042Z15/GxGDEW042Z15.h> // 4.2" b/w/r
-#include <GxIO/GxIO_SPI/GxIO_SPI.h>
-#include <GxIO/GxIO.h>
-
-SPIClass DisplaySPI(VSPI); // CLK=VSPI_CLK=D18, MOSI=VSPI_MOSI=D23, MISO=D19, CS=VSPI_CS0=D5
-GxIO_Class io(DisplaySPI, /*CS=VSPI_CS0=D5*/ 5, /*DC=D17*/ 17, /*RST=D16*/ 16);
-GxEPD_Class display(io, /*RST=D16*/ 16, /*BUSY=D15*/ 15);
+#include <GxEPD2_3C.h>
+GxEPD2_3C<GxEPD2_420c, GxEPD2_420c::HEIGHT> display(GxEPD2_420c(/*CS=VSPI_CS0=D5*/ 5, /*DC=D17*/ 17, /*RST=D16*/ 16, /*BUSY=D15*/ 15));
 #define BLACK (0x0000)
 #define WHITE (0xFFFF)
 #define COLOR (0xF800)
@@ -114,10 +108,16 @@ void setup()
   WiFi.begin(ssid, password);
 
   //check wi-fi is connected to wi-fi network
+  int retries = 5;
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(1000);
     Serial.print(".");
+    retries--;
+    if (retries <= 0)
+    {
+      ESP.restart();
+    }
   }
   Serial.print(" connected!");
   Serial.print(" (IP=");
@@ -157,9 +157,9 @@ void setup()
   initStage++;
 
   Serial.println("[  INIT  ] setup ePaper display");
-  delay(100);                // wait a bit, before display-class starts writing to serial out
+  delay(100);            // wait a bit, before display-class starts writing to serial out
   display.init(115200U); // uncomment serial speed definition for debug output
-  io.setFrequency(500000U);  // set to 500kHz; the default setting (4MHz) could be unreliable with active modem and unshielded wiring
+  // io.setFrequency(500000U);  // set to 500kHz; the default setting (4MHz) could be unreliable with active modem and unshielded wiring
   delay(100);
   initStage++;
 
@@ -173,8 +173,9 @@ void setup()
 
 void updateScreen()
 {
-  display.drawBitmap(images.background.color, 0, 0, 400, 300, COLOR, display.bm_invert);
-  display.drawBitmap(images.background.black, 0, 0, 400, 300, BLACK, display.bm_invert | display.bm_transparent);
+  display.fillScreen(GxEPD_WHITE);
+  display.drawBitmap(0, 0, images.background.color, display.epd2.WIDTH, display.epd2.HEIGHT, COLOR);
+  display.drawBitmap(0, 0, images.background.black, display.epd2.WIDTH, display.epd2.HEIGHT, BLACK);
 
   // Time
   display.setFont(&NotoSans_Bold30pt7b);
@@ -245,7 +246,7 @@ void updateScreen()
                  sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
                  (esp_timer_get_time() / 1000000LL));
 
-  display.update();
+  display.display(false);
 }
 
 void reconnect()
@@ -300,27 +301,26 @@ void loop()
       currentHumidityPercent = bme.readHumidity();
       currentPressurePascal = bme.readPressure() + PRESSURE_MEASUREMENT_CALIBRATION;
 
-      // Serial.printf("Temp=%.1f°C  Hum=%.1f%%  Press=%.1fhPa\n", currentTemperatureCelsius, currentHumidityPercent, currentPressurePascal / 100.);
-      // memory state
-      Serial.printf("[ STATUS ] Free: %u KiB (%u KiB)  In: %u (%u B)  Out: %u (%u B)  Hum: %u (%u B) Press: %u (%u B) Uptime: %" PRIi64 "s\n",
-                    ESP.getFreeHeap() / 1024,
-                    ESP.getMaxAllocHeap() / 1024,
-                    insideTemp.size(),
-                    sizeof(insideTemp.data) + sizeof(Point) * insideTemp.data.capacity(),
-                    outsideTemp.size(),
-                    sizeof(outsideTemp.data) + sizeof(Point) * outsideTemp.data.capacity(),
-                    insideHum.size(),
-                    sizeof(insideHum.data) + sizeof(Point) * insideHum.data.capacity(),
-                    pressure.size(),
-                    sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
-                    (esp_timer_get_time() / 1000000LL));
-
       // update statistics for each measurement
       uint32_t timestamp = uptime.getSeconds();
       insideTemp.push(timestamp, currentTemperatureCelsius);
       insideHum.push(timestamp, currentHumidityPercent);
       pressure.push(timestamp, currentPressurePascal / 100.); // use hPa
     }
+
+    // memory state
+    Serial.printf("[ STATUS ] Free: %u KiB (%u KiB)  In: %u (%u B)  Out: %u (%u B)  Hum: %u (%u B) Press: %u (%u B) Uptime: %" PRIi64 "s\n",
+                  ESP.getFreeHeap() / 1024,
+                  ESP.getMaxAllocHeap() / 1024,
+                  insideTemp.size(),
+                  sizeof(insideTemp.data) + sizeof(Point) * insideTemp.data.capacity(),
+                  outsideTemp.size(),
+                  sizeof(outsideTemp.data) + sizeof(Point) * outsideTemp.data.capacity(),
+                  insideHum.size(),
+                  sizeof(insideHum.data) + sizeof(Point) * insideHum.data.capacity(),
+                  pressure.size(),
+                  sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
+                  (esp_timer_get_time() / 1000000LL));
   }
 
   // 300s Tasks
