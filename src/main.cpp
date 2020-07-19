@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <Wire.h>
 // #include <LittleFS.h>
 
 #include <WiFi.h>
@@ -19,13 +18,16 @@ PubSubClient mqttClient(wifiClient);
 // Environment sensor includes and defines
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
+#define BME280_PIN_I2C_SCL (22)
+#define BME280_PIN_I2C_SDA (21)
 #define BME280_ADDR (0x76)
-#define BME280_PIN_VCC (2)
+#define BME280_PIN_VCC (4)
 #define PRESSURE_MEASUREMENT_CALIBRATION (6000)
 #define SEALEVEL_PRESSURE (1013.25)
 #define SEALEVEL_PRESSURE_CALIBRATION (9.65)
 
-Adafruit_BME280 bme; // use I2C
+TwoWire I2CBME = TwoWire(0); // set up a new Wire-Instance for BME280 Environment Sensor
+Adafruit_BME280 bme;         // use I2C
 bool environmentSensorAvailable = false;
 
 // Display stuff
@@ -96,6 +98,11 @@ void callback(char *topic, byte *payload, unsigned int length)
 // run once on startup
 void setup()
 {
+  // LED output
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
+  initStage++;
+
   // Setup serial connection for debugging
   Serial.begin(115200U);
   delay(500);
@@ -103,26 +110,26 @@ void setup()
   Serial.println("[  INIT  ] Begin");
   initStage++;
 
-  //connect to your local wi-fi network
-  Serial.printf("[  INIT  ] Connecting to Wifi '%s'", ssid);
-  WiFi.begin(ssid, password);
+  // //connect to your local wi-fi network
+  // Serial.printf("[  INIT  ] Connecting to Wifi '%s'", ssid);
+  // WiFi.begin(ssid, password);
 
-  //check wi-fi is connected to wi-fi network
-  int retries = 5;
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(1000);
-    Serial.print(".");
-    retries--;
-    if (retries <= 0)
-    {
-      ESP.restart();
-    }
-  }
-  Serial.print(" connected!");
-  Serial.print(" (IP=");
-  Serial.print(WiFi.localIP());
-  Serial.println(")");
+  // //check wi-fi is connected to wi-fi network
+  // int retries = 5;
+  // while (WiFi.status() != WL_CONNECTED)
+  // {
+  //   delay(1000);
+  //   Serial.print(".");
+  //   retries--;
+  //   if (retries <= 0)
+  //   {
+  //     ESP.restart();
+  //   }
+  // }
+  // Serial.print(" connected!");
+  // Serial.print(" (IP=");
+  // Serial.print(WiFi.localIP());
+  // Serial.println(")");
 
   // Power-On Environment Sensor
   pinMode(BME280_PIN_VCC, OUTPUT);
@@ -131,11 +138,23 @@ void setup()
   initStage++;
 
   // Initialize Environment Sensor
-  if (bme.begin(BME280_ADDR, &Wire)) // use custom Wire-Instance to avoid interference with other libraries.
+  if (I2CBME.begin(BME280_PIN_I2C_SDA, BME280_PIN_I2C_SCL, 250000U)) // set I2C-Clock to 250kHz
   {
     initStage++;
-    environmentSensorAvailable = true;
-    Serial.println("[  INIT  ] found BME280 environment sensor");
+    if (bme.begin(BME280_ADDR, &I2CBME)) // use custom Wire-Instance to avoid interference with other libraries.
+    {
+      initStage++;
+      environmentSensorAvailable = true;
+      Serial.println("[  INIT  ] found BME280 environment sensor");
+    }
+    else
+    {
+      Serial.println("[ ERROR  ] Could not find a BME280 sensor, check wiring!");
+    }
+  }
+  else
+  {
+    Serial.println("[ ERROR  ] Could not setup I2C Interface!");
   }
 
   if (environmentSensorAvailable)
@@ -150,11 +169,6 @@ void setup()
                     Adafruit_BME280::STANDBY_MS_500); /* Standby time. */
     Serial.println("[  INIT  ] BME280 setup done");
   }
-  else
-  {
-    Serial.println("[ ERROR  ] Could not find a BME280 sensor, check wiring!");
-  }
-  initStage++;
 
   Serial.println("[  INIT  ] setup ePaper display");
   delay(100);            // wait a bit, before display-class starts writing to serial out
@@ -163,10 +177,10 @@ void setup()
   delay(100);
   initStage++;
 
-  Serial.println("[  INIT  ] Connecting to MQTT-Server...");
-  mqttClient.setServer(server, 1883);
-  mqttClient.setCallback(callback);
-  initStage++;
+  // Serial.println("[  INIT  ] Connecting to MQTT-Server...");
+  // mqttClient.setServer(server, 1883);
+  // mqttClient.setCallback(callback);
+  // initStage++;
 
   Serial.printf("[  INIT  ] Completed at stage %u\n\n", initStage);
 }
@@ -246,7 +260,7 @@ void updateScreen()
                  sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
                  (esp_timer_get_time() / 1000000LL));
 
-  display.display(false);
+  // display.display(false);
 }
 
 void reconnect()
@@ -289,10 +303,10 @@ void loop()
   // 30s Tasks
   if (!(counterBase % (30000L / SCHEDULER_MAIN_LOOP_MS)))
   {
-    if (!mqttClient.connected())
-    {
-      reconnect();
-    }
+    // if (!mqttClient.connected())
+    // {
+    //   reconnect();
+    // }
 
     if (environmentSensorAvailable)
     {
