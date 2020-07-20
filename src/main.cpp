@@ -120,8 +120,8 @@ void setup()
   initStage++;
 
   //connect to your local wi-fi network
-  Serial.printf("[  INIT  ] Connecting to Wifi '%s'", ssid);
-  WiFi.begin(ssid, password);
+  Serial.printf("[  INIT  ] Connecting to Wifi '%s'", config.wifiSsid);
+  WiFi.begin(config.wifiSsid, config.wifiPassword);
 
   //check wi-fi is connected to wi-fi network
   int retries = 5;
@@ -143,13 +143,10 @@ void setup()
 
   // Clock setup
   Serial.println("[  INIT  ] Clock synchronization");
-  uptime.setTime({tm_sec : 0, tm_min : 00, tm_hour : 00, tm_mday : 1, tm_mon : 1, tm_year : 2020 - 1900});
-
+  configTime(0, 0, config.ntpServer);
+  delay(200);                                  // wait for ntp-sync
   setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0", 1); //"Europe/Berlin"  from: http://www.famschmid.net/timezones.html
   tzset();                                     // Assign the local timezone from setenv
-
-  setlocale (LC_TIME,"de_DE.UTF-8");
-
   tm *tm = uptime.getTime();
   Serial.printf("[  INIT  ] Current time is: %02d.%02d.%04d %02d:%02d:%02d\n", tm->tm_mday, tm->tm_mon, tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec);
   initStage++;
@@ -200,7 +197,7 @@ void setup()
   initStage++;
 
   Serial.println("[  INIT  ] Connecting to MQTT-Server...");
-  mqttClient.setServer(server, 1883);
+  mqttClient.setServer(config.mqttServer, 1883);
   mqttClient.setCallback(callback);
   initStage++;
 
@@ -376,10 +373,10 @@ void loop()
       // FIXME: Filter high-frequency noise somehow
 
       // apply compression (Ramer-Douglas-Peucker)
-      insideTemp.compact(0.2);
+      insideTemp.compact(0.03);
       insideHum.compact(0.2);
-      pressure.compact(0.1);
-      outsideTemp.compact(0.2);
+      pressure.compact(0.05);
+      outsideTemp.compact(0.03);
     }
 
     if (true)
