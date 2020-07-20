@@ -110,6 +110,15 @@ void setup()
   Serial.println("[  INIT  ] Begin");
   initStage++;
 
+  Serial.printf("[  INIT  ] ChipRevision: 0x%02X    CpuFreq: %uMHz   FlashChipSize: %uKiB   HeapSize: %uKiB   MAC: %s   SdkVersion: %s\n",
+                ESP.getChipRevision(),
+                ESP.getCpuFreqMHz(),
+                ESP.getFlashChipSize() / 1024,
+                ESP.getHeapSize() / 1024,
+                WiFi.macAddress().c_str(),
+                ESP.getSdkVersion());
+  initStage++;
+
   //connect to your local wi-fi network
   Serial.printf("[  INIT  ] Connecting to Wifi '%s'", ssid);
   WiFi.begin(ssid, password);
