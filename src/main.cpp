@@ -3,7 +3,6 @@
 
 #include <WiFi.h>
 #include <PubSubClient.h>
-
 /**
  * This file must contain the following variables:
  *  const char *ssid = "test" // WiFi AP-Name
@@ -64,6 +63,10 @@ Chart chart;
 
 #include <gfx.h>
 
+// file system stuff
+#include "SPIFFS.h"
+bool filesystemAvailable = true;
+
 // Flow control, basic task scheduler
 #define SCHEDULER_MAIN_LOOP_MS (10) // ms
 uint32_t counterBase = 0;
@@ -76,7 +79,8 @@ float currentHumidityPercent;
 float currentPressurePascal;
 float currentOutsideTemperatureCelsius;
 
-char message_buff[100];
+char byteBuffer[100];
+
 void callback(char *topic, byte *payload, unsigned int length)
 {
   Serial.print("[  MQTT  ] Message arrived [");
@@ -86,10 +90,10 @@ void callback(char *topic, byte *payload, unsigned int length)
   for (i = 0; i < length; i++)
   {
     Serial.print((char)payload[i]);
-    message_buff[i] = payload[i];
+    byteBuffer[i] = payload[i];
   }
-  message_buff[i] = 0;
-  currentOutsideTemperatureCelsius = atof(message_buff);
+  byteBuffer[i] = 0;
+  currentOutsideTemperatureCelsius = atof(byteBuffer);
   uint32_t timestamp = uptime.getSeconds();
   outsideTemp.push(timestamp, currentOutsideTemperatureCelsius);
   Serial.println();
@@ -154,7 +158,7 @@ void setup()
   // Power-On Environment Sensor
   pinMode(BME280_PIN_VCC, OUTPUT);
   digitalWrite(BME280_PIN_VCC, HIGH);
-  delay(5); // wait for BMW280 to power up. Takes around 2ms.
+  delay(5); // wait for BME280 to power up. Takes around 2ms.
   initStage++;
 
   // Initialize Environment Sensor
@@ -196,9 +200,24 @@ void setup()
   delay(100);
   initStage++;
 
-  Serial.println("[  INIT  ] Connecting to MQTT-Server...");
+  Serial.print("[  INIT  ] Connecting to MQTT-Server... ");
   mqttClient.setServer(config.mqttServer, 1883);
   mqttClient.setCallback(callback);
+  Serial.println("ok");
+  initStage++;
+
+  Serial.print("[  INIT  ] Mounting file system... ");
+  if (SPIFFS.begin(true))
+  {
+    Serial.println("ok");
+    Serial.printf("[  FILE  ] total: %u KiB  available: %u KiB\n", SPIFFS.totalBytes() / 1024, (SPIFFS.totalBytes() - SPIFFS.usedBytes()) / 1024);
+  }
+  else
+  {
+    Serial.println("failed");
+    Serial.println("[ ERROR  ] An Error has occurred while mounting SPIFFS");
+    filesystemAvailable = false;
+  }
   initStage++;
 
   Serial.printf("[  INIT  ] Completed at stage %u\n\n", initStage);
@@ -261,10 +280,10 @@ void updateScreen()
   display.printf("%.1f", pressure.min);
 
   // Charts
-  chart.lineChart(&display, &insideTemp, 170, 92, 230, 88, 1.8, COLOR, false, false, false, tempChartMin, tempChartMax);
-  chart.lineChart(&display, &outsideTemp, 170, 92, 230, 88, 1.8, BLACK, false, false, false, tempChartMin, tempChartMax);
-  chart.lineChart(&display, &insideHum, 170, 190, 230, 44, 1.8, BLACK);
-  chart.lineChart(&display, &pressure, 170, 242, 230, 44, 1.8, BLACK);
+  chart.lineChart(&display, &insideTemp, 170, 92, 230, 88, 2, COLOR, false, false, false, tempChartMin, tempChartMax);
+  chart.lineChart(&display, &outsideTemp, 170, 92, 230, 88, 2, BLACK, false, false, false, tempChartMin, tempChartMax);
+  chart.lineChart(&display, &insideHum, 170, 190, 230, 44, 2, BLACK);
+  chart.lineChart(&display, &pressure, 170, 242, 230, 44, 2, BLACK);
 
   // Uptime and Memory stats
   display.setFont(&Org_01);
@@ -341,6 +360,17 @@ void loop()
       insideTemp.push(timestamp, currentTemperatureCelsius);
       insideHum.push(timestamp, currentHumidityPercent);
       pressure.push(timestamp, currentPressurePascal / 100.); // use hPa
+
+      int len = 0;
+      len = snprintf(byteBuffer, 100, "{\"value\": %.1f, \"timestamp\": %u, \"unit\": \"\u00b0C\"}", currentTemperatureCelsius, uptime.getSeconds());
+      mqttClient.publish("home/in/temp", byteBuffer, len);
+      len = snprintf(byteBuffer, 100, "%.1f", currentTemperatureCelsius);
+      mqttClient.publish("home/in/temp/value", byteBuffer, len);
+
+      len = snprintf(byteBuffer, 100, "{\"value\": %.0f, \"timestamp\": %u, \"unit\": \"%%\"}", currentHumidityPercent, uptime.getSeconds());
+      mqttClient.publish("home/in/hum", byteBuffer, len);
+      len = snprintf(byteBuffer, 100, "%.0f", currentHumidityPercent);
+      mqttClient.publish("home/in/hum/value", byteBuffer, len);
     }
 
     // memory state
