@@ -21,6 +21,12 @@ An e-paper dashboard in a photo frame to show environment information.
 - [ESP8266 Timer and Ticker Example](https://circuits4you.com/2018/01/02/esp8266-timer-ticker-example/)
 - [Renzo Mischianti - LittleFS File System](https://www.mischianti.org/2020/06/22/wemos-d1-mini-esp8266-integrated-littlefs-filesystem-part-5/)
 - [Getting Started with the ESP32 Development Board](https://randomnerdtutorials.com/getting-started-with-esp32/)
+- [List all files in the SPIFFS file system](https://techtutorialsx.com/2019/02/23/esp32-arduino-list-all-files-in-the-spiffs-file-system/)
+- [DOIT ESP32 Development Board Review](https://idyl.io/doit-esp32-development-board-review/)
+
+### C/C++, Coding
+
+- [Reading and writing C++ vector to a file](https://stackoverflow.com/questions/2469531/reading-and-writing-c-vector-to-a-file)
 
 ### Graphics, Artwork
 

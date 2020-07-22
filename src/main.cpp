@@ -220,6 +220,42 @@ void setup()
   }
   initStage++;
 
+  if (filesystemAvailable)
+  {
+    Serial.println("[  INIT  ] file list");
+    File root = SPIFFS.open("/");
+    File file = root.openNextFile();
+    while (file)
+    {
+      Serial.printf("%s - %u Bytes\n", file.name(), file.size());
+      file = root.openNextFile();
+    }
+    root.close();
+    file.close();
+    Serial.println();
+
+    Serial.println("[  INIT  ] Restoring data...");
+    file = SPIFFS.open("/outsideTemp.bin", FILE_READ);
+    if (file && file.size() > 0)
+    {
+      Serial.printf("filesize=%u\n", file.size());
+      if (outsideTemp.read(file))
+      {
+        Serial.println("[  FILE  ] File was read");
+      }
+      else
+      {
+        Serial.println("[ ERROR  ] File read failed");
+      }
+      file.close();
+    }
+    else
+    {
+      Serial.println("[ ERROR  ] There was an error opening the file for reading");
+    }
+    initStage++;
+  }
+
   Serial.printf("[  INIT  ] Completed at stage %u\n\n", initStage);
 }
 
@@ -409,28 +445,14 @@ void loop()
       outsideTemp.compact(0.03);
     }
 
-    if (true)
-    {
-      Serial.print("[  DISP  ] Updating... ");
-      updateScreen();
-      Serial.println("ok");
-    }
-
-    counter300s++;
-  }
-
-  // 1h Tasks
-  if (!(counterBase % (3600000L / SCHEDULER_MAIN_LOOP_MS)))
-  {
-    if (counter1h > 0)
+    if (true && counter300s > 0)
     {
       if (filesystemAvailable)
       {
-        File file = SPIFFS.open("/insideTemp.bin", FILE_WRITE);
-
+        File file = SPIFFS.open("/outsideTemp.bin", FILE_WRITE);
         if (file)
         {
-          if (insideTemp.writeFile(file))
+          if (outsideTemp.write(file))
           {
             Serial.println("[  FILE  ] File was written");
           }
@@ -445,6 +467,22 @@ void loop()
           Serial.println("[ ERROR  ] There was an error opening the file for writing");
         }
       }
+    }
+
+    if (true)
+    {
+      Serial.print("[  DISP  ] Updating... ");
+      updateScreen();
+      Serial.println("ok");
+    }
+    counter300s++;
+  }
+
+  // 1h Tasks
+  if (!(counterBase % (3600000L / SCHEDULER_MAIN_LOOP_MS)))
+  {
+    if (counter1h > 0)
+    {
     }
     counter1h++;
   }
