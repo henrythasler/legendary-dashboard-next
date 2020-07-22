@@ -422,6 +422,30 @@ void loop()
   // 1h Tasks
   if (!(counterBase % (3600000L / SCHEDULER_MAIN_LOOP_MS)))
   {
+    if (counter1h > 0)
+    {
+      if (filesystemAvailable)
+      {
+        File file = SPIFFS.open("/insideTemp.bin", FILE_WRITE);
+
+        if (file)
+        {
+          if (insideTemp.writeFile(file))
+          {
+            Serial.println("[  FILE  ] File was written");
+          }
+          else
+          {
+            Serial.println("[ ERROR  ] File write failed");
+          }
+          file.close();
+        }
+        else
+        {
+          Serial.println("[ ERROR  ] There was an error opening the file for writing");
+        }
+      }
+    }
     counter1h++;
   }
 
