@@ -1,8 +1,11 @@
 #include <Arduino.h>
+#include <SPI.h>
+#include <Wire.h>
 
 // file system stuff
 #include "SPIFFS.h"
 bool filesystemAvailable = true;
+int initStage = 0;
 
 // run once on startup
 void setup()
@@ -17,15 +20,6 @@ void setup()
   delay(500);
   Serial.println();
   Serial.println("[  INIT  ] Begin");
-  initStage++;
-
-  Serial.printf("[  INIT  ] ChipRevision: 0x%02X    CpuFreq: %uMHz   FlashChipSize: %uKiB   HeapSize: %uKiB   MAC: %s   SdkVersion: %s\n",
-                ESP.getChipRevision(),
-                ESP.getCpuFreqMHz(),
-                ESP.getFlashChipSize() / 1024,
-                ESP.getHeapSize() / 1024,
-                WiFi.macAddress().c_str(),
-                ESP.getSdkVersion());
   initStage++;
 
   Serial.print("[  INIT  ] Mounting file system... ");
@@ -44,7 +38,9 @@ void setup()
 
   if (filesystemAvailable)
   {
-    SPIFFS.remove("/")
+    SPIFFS.remove("/insideTemp.bin");
+    SPIFFS.remove("/insideHum.bin");
+    SPIFFS.remove("/pressure.bin");
   }
 
   Serial.printf("[  INIT  ] Completed at stage %u\n\n", initStage);
