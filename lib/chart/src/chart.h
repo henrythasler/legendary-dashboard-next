@@ -27,7 +27,11 @@ public:
                    bool yAxisMinAuto = true,
                    bool yAxisMaxAuto = true,
                    float yAxisMin = 0,
-                   float yAxisMax = 100);
+                   float yAxisMax = 100,
+                   bool xAxisMinAuto = true,
+                   bool xAxisMaxAuto = true,
+                   float xAxisMin = 0,
+                   float xAxisMax = 1000);
 
     void plotLineWidth(Adafruit_GFX *display, int32_t x0, int32_t y0, int32_t x1, int32_t y1, float wd, uint16_t lineColor);
 #endif

@@ -99,6 +99,48 @@ void callback(char *topic, byte *payload, unsigned int length)
   Serial.println();
 }
 
+void loadTimeseries(Timeseries *series, const char *filename)
+{
+  File file = SPIFFS.open(filename, FILE_READ);
+  if (file && file.size() > 0)
+  {
+    if ((*series).read(file))
+    {
+      Serial.printf("[  FILE  ] File was read '%s'\n", filename);
+    }
+    else
+    {
+      Serial.println("[ ERROR  ] File read failed");
+    }
+    file.close();
+  }
+  else
+  {
+    Serial.println("[ ERROR  ] There was an error opening the file for reading");
+  }
+}
+
+void saveTimeseries(Timeseries *series, const char *filename)
+{
+  File file = SPIFFS.open(filename, FILE_WRITE);
+  if (file)
+  {
+    if ((*series).write(file))
+    {
+      Serial.println("[  FILE  ] File was written");
+    }
+    else
+    {
+      Serial.println("[ ERROR  ] File write failed");
+    }
+    file.close();
+  }
+  else
+  {
+    Serial.println("[ ERROR  ] There was an error opening the file for writing");
+  }
+}
+
 // run once on startup
 void setup()
 {
@@ -235,24 +277,15 @@ void setup()
     Serial.println();
 
     Serial.println("[  INIT  ] Restoring data...");
-    file = SPIFFS.open("/outsideTemp.bin", FILE_READ);
-    if (file && file.size() > 0)
-    {
-      Serial.printf("filesize=%u\n", file.size());
-      if (outsideTemp.read(file))
-      {
-        Serial.println("[  FILE  ] File was read");
-      }
-      else
-      {
-        Serial.println("[ ERROR  ] File read failed");
-      }
-      file.close();
-    }
-    else
-    {
-      Serial.println("[ ERROR  ] There was an error opening the file for reading");
-    }
+    loadTimeseries(&insideTemp, "/insideTemp.bin");
+    loadTimeseries(&insideHum, "/insideHum.bin");
+    loadTimeseries(&outsideTemp, "/outsideTemp.bin");
+    loadTimeseries(&pressure, "/pressure.bin");
+
+    insideTemp.trim(uptime.getSeconds(), 2 * 24 * 3600);
+    insideHum.trim(uptime.getSeconds(), 2 * 24 * 3600);
+    pressure.trim(uptime.getSeconds(), 2 * 24 * 3600);
+    outsideTemp.trim(uptime.getSeconds(), 2 * 24 * 3600);
     initStage++;
   }
 
@@ -294,8 +327,11 @@ void updateScreen()
   display.printf("%.0f", currentPressurePascal / 100);
 
   // Linecharts
-  float tempChartMin = min(insideTemp.min, outsideTemp.min) - 2;
-  float tempChartMax = max(insideTemp.max, outsideTemp.max) + 2;
+  float tempChartMin = min(insideTemp.min, outsideTemp.min) - 1;
+  float tempChartMax = max(insideTemp.max, outsideTemp.max) + 1;
+
+  float tMin = min(min(min(insideTemp.data.front().time, outsideTemp.data.front().time), insideHum.data.front().time), pressure.data.front().time);
+  float tMax = uptime.getSeconds();
 
   // Y-Axis Labels
   display.setFont(&Org_01);
@@ -316,10 +352,10 @@ void updateScreen()
   display.printf("%.1f", pressure.min);
 
   // Charts
-  chart.lineChart(&display, &insideTemp, 170, 92, 230, 88, 2, COLOR, false, false, false, tempChartMin, tempChartMax);
-  chart.lineChart(&display, &outsideTemp, 170, 92, 230, 88, 2, BLACK, false, false, false, tempChartMin, tempChartMax);
-  chart.lineChart(&display, &insideHum, 170, 190, 230, 44, 2, BLACK);
-  chart.lineChart(&display, &pressure, 170, 242, 230, 44, 2, BLACK);
+  chart.lineChart(&display, &insideTemp, 170, 92, 230, 88, 2, COLOR, false, false, false, tempChartMin, tempChartMax, false, false, tMin, tMax);
+  chart.lineChart(&display, &outsideTemp, 170, 92, 230, 88, 2, BLACK, false, false, false, tempChartMin, tempChartMax, false, false, tMin, tMax);
+  chart.lineChart(&display, &insideHum, 170, 190, 230, 44, 2, BLACK, false, true, true, 0, 0, false, false, tMin, tMax);
+  chart.lineChart(&display, &pressure, 170, 242, 230, 44, 2, BLACK, false, true, true, 0, 0, false, false, tMin, tMax);
 
   // Uptime and Memory stats
   display.setFont(&Org_01);
@@ -449,23 +485,10 @@ void loop()
     {
       if (filesystemAvailable)
       {
-        File file = SPIFFS.open("/outsideTemp.bin", FILE_WRITE);
-        if (file)
-        {
-          if (outsideTemp.write(file))
-          {
-            Serial.println("[  FILE  ] File was written");
-          }
-          else
-          {
-            Serial.println("[ ERROR  ] File write failed");
-          }
-          file.close();
-        }
-        else
-        {
-          Serial.println("[ ERROR  ] There was an error opening the file for writing");
-        }
+        saveTimeseries(&insideTemp, "/insideTemp.bin");
+        saveTimeseries(&insideHum, "/insideHum.bin");
+        saveTimeseries(&outsideTemp, "/outsideTemp.bin");
+        saveTimeseries(&pressure, "/pressure.bin");
       }
     }
 
