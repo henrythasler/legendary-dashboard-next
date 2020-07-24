@@ -4,10 +4,11 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 /**
- * This file must contain the following variables:
- *  const char *ssid = "test" // WiFi AP-Name
- *  const char *password = "1234" // WiFi-password 
- *  IPAddress server(192, 168, 0, 0); // MQTT-Server
+ * This file must contain a struct "secrets" with the following properties:
+ *  const char *wifiSsid = "test" // WiFi AP-Name
+ *  const char *wifiPassword = "1234"
+ *  const char *ntpServer = "192.168.0.1";
+ *  IPAddress mqttServer = IPAddress(192, 168, 0, 1); // MQTT-Broker
  **/
 #include <secrets.h>
 
@@ -64,7 +65,9 @@ Chart chart;
 #include <gfx.h>
 
 // file system stuff
-#include "SPIFFS.h"
+#include <SPIFFS.h>
+#include <persistency.h>
+Persistency persistency;
 bool filesystemAvailable = true;
 
 // Flow control, basic task scheduler
@@ -81,7 +84,7 @@ float currentOutsideTemperatureCelsius;
 
 char byteBuffer[100];
 
-void callback(char *topic, byte *payload, unsigned int length)
+void mqttCallback(char *topic, byte *payload, unsigned int length)
 {
   Serial.print("[  MQTT  ] Message arrived [");
   Serial.print(topic);
@@ -99,47 +102,8 @@ void callback(char *topic, byte *payload, unsigned int length)
   Serial.println();
 }
 
-void loadTimeseries(Timeseries *series, const char *filename)
-{
-  File file = SPIFFS.open(filename, FILE_READ);
-  if (file && file.size() > 0)
-  {
-    if ((*series).read(file))
-    {
-      Serial.printf("[  FILE  ] File was read '%s'\n", filename);
-    }
-    else
-    {
-      Serial.println("[ ERROR  ] File read failed");
-    }
-    file.close();
-  }
-  else
-  {
-    Serial.println("[ ERROR  ] There was an error opening the file for reading");
-  }
-}
 
-void saveTimeseries(Timeseries *series, const char *filename)
-{
-  File file = SPIFFS.open(filename, FILE_WRITE);
-  if (file)
-  {
-    if ((*series).write(file))
-    {
-      Serial.println("[  FILE  ] File was written");
-    }
-    else
-    {
-      Serial.println("[ ERROR  ] File write failed");
-    }
-    file.close();
-  }
-  else
-  {
-    Serial.println("[ ERROR  ] There was an error opening the file for writing");
-  }
-}
+
 
 // run once on startup
 void setup()
@@ -166,8 +130,8 @@ void setup()
   initStage++;
 
   //connect to your local wi-fi network
-  Serial.printf("[  INIT  ] Connecting to Wifi '%s'", config.wifiSsid);
-  WiFi.begin(config.wifiSsid, config.wifiPassword);
+  Serial.printf("[  INIT  ] Connecting to Wifi '%s'", secrets.wifiSsid);
+  WiFi.begin(secrets.wifiSsid, secrets.wifiPassword);
 
   //check wi-fi is connected to wi-fi network
   int retries = 5;
@@ -189,10 +153,13 @@ void setup()
 
   // Clock setup
   Serial.println("[  INIT  ] Clock synchronization");
-  configTime(0, 0, config.ntpServer);
+  configTime(0, 0, secrets.ntpServer);
   delay(200);                                  // wait for ntp-sync
+
+  // set timezone and DST
   setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0", 1); //"Europe/Berlin"  from: http://www.famschmid.net/timezones.html
   tzset();                                     // Assign the local timezone from setenv
+
   tm *tm = uptime.getTime();
   Serial.printf("[  INIT  ] Current time is: %02d.%02d.%04d %02d:%02d:%02d\n", tm->tm_mday, tm->tm_mon, tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec);
   initStage++;
@@ -243,8 +210,8 @@ void setup()
   initStage++;
 
   Serial.print("[  INIT  ] Connecting to MQTT-Server... ");
-  mqttClient.setServer(config.mqttServer, 1883);
-  mqttClient.setCallback(callback);
+  mqttClient.setServer(secrets.mqttServer, 1883);
+  mqttClient.setCallback(mqttCallback);
   Serial.println("ok");
   initStage++;
 
@@ -277,10 +244,10 @@ void setup()
     Serial.println();
 
     Serial.println("[  INIT  ] Restoring data...");
-    loadTimeseries(&insideTemp, "/insideTemp.bin");
-    loadTimeseries(&insideHum, "/insideHum.bin");
-    loadTimeseries(&outsideTemp, "/outsideTemp.bin");
-    loadTimeseries(&pressure, "/pressure.bin");
+    persistency.loadTimeseries(&insideTemp, "/insideTemp.bin");
+    persistency.loadTimeseries(&insideHum, "/insideHum.bin");
+    persistency.loadTimeseries(&outsideTemp, "/outsideTemp.bin");
+    persistency.loadTimeseries(&pressure, "/pressure.bin");
 
     insideTemp.trim(uptime.getSeconds(), 2 * 24 * 3600);
     insideHum.trim(uptime.getSeconds(), 2 * 24 * 3600);
@@ -291,6 +258,9 @@ void setup()
 
   Serial.printf("[  INIT  ] Completed at stage %u\n\n", initStage);
 }
+
+
+
 
 void updateScreen()
 {
@@ -375,6 +345,9 @@ void updateScreen()
   display.display(false);
 }
 
+
+
+
 void reconnect()
 {
   Serial.print("[  MQTT  ] Attempting MQTT connection... ");
@@ -389,6 +362,9 @@ void reconnect()
     Serial.print(mqttClient.state());
   }
 }
+
+
+
 
 // run forever
 void loop()
@@ -485,10 +461,10 @@ void loop()
     {
       if (filesystemAvailable)
       {
-        saveTimeseries(&insideTemp, "/insideTemp.bin");
-        saveTimeseries(&insideHum, "/insideHum.bin");
-        saveTimeseries(&outsideTemp, "/outsideTemp.bin");
-        saveTimeseries(&pressure, "/pressure.bin");
+        persistency.saveTimeseries(&insideTemp, "/insideTemp.bin");
+        persistency.saveTimeseries(&insideHum, "/insideHum.bin");
+        persistency.saveTimeseries(&outsideTemp, "/outsideTemp.bin");
+        persistency.saveTimeseries(&pressure, "/pressure.bin");
       }
     }
 
