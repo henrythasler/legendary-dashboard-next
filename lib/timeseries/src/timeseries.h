@@ -10,6 +10,10 @@
 
 #ifdef ARDUINO
 #include <Arduino.h>
+#include <FS.h>
+#else
+#include <stdio.h>
+typedef FILE File; 
 #endif
 
 using namespace std;
@@ -67,6 +71,8 @@ public:
 
   float perpendicularDistance(const Point &pt, const Point &lineStart, const Point &lineEnd);
   void ramerDouglasPeucker(const vector<Point> &pointList, float epsilon, vector<Point> &out);
+  bool write(File file);
+  bool read(File file);
 
   void movingAverage(int32_t samples = 5);
 };

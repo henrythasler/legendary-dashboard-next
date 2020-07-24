@@ -4,10 +4,11 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 /**
- * This file must contain the following variables:
- *  const char *ssid = "test" // WiFi AP-Name
- *  const char *password = "1234" // WiFi-password 
- *  IPAddress server(192, 168, 0, 0); // MQTT-Server
+ * This file must contain a struct "secrets" with the following properties:
+ *  const char *wifiSsid = "test" // WiFi AP-Name
+ *  const char *wifiPassword = "1234"
+ *  const char *ntpServer = "192.168.0.1";
+ *  IPAddress mqttServer = IPAddress(192, 168, 0, 1); // MQTT-Broker
  **/
 #include <secrets.h>
 
@@ -64,7 +65,9 @@ Chart chart;
 #include <gfx.h>
 
 // file system stuff
-#include "SPIFFS.h"
+#include <SPIFFS.h>
+#include <persistency.h>
+Persistency persistency;
 bool filesystemAvailable = true;
 
 // Flow control, basic task scheduler
@@ -81,7 +84,7 @@ float currentOutsideTemperatureCelsius;
 
 char byteBuffer[100];
 
-void callback(char *topic, byte *payload, unsigned int length)
+void mqttCallback(char *topic, byte *payload, unsigned int length)
 {
   Serial.print("[  MQTT  ] Message arrived [");
   Serial.print(topic);
@@ -98,6 +101,9 @@ void callback(char *topic, byte *payload, unsigned int length)
   outsideTemp.push(timestamp, currentOutsideTemperatureCelsius);
   Serial.println();
 }
+
+
+
 
 // run once on startup
 void setup()
@@ -124,8 +130,8 @@ void setup()
   initStage++;
 
   //connect to your local wi-fi network
-  Serial.printf("[  INIT  ] Connecting to Wifi '%s'", config.wifiSsid);
-  WiFi.begin(config.wifiSsid, config.wifiPassword);
+  Serial.printf("[  INIT  ] Connecting to Wifi '%s'", secrets.wifiSsid);
+  WiFi.begin(secrets.wifiSsid, secrets.wifiPassword);
 
   //check wi-fi is connected to wi-fi network
   int retries = 5;
@@ -147,10 +153,13 @@ void setup()
 
   // Clock setup
   Serial.println("[  INIT  ] Clock synchronization");
-  configTime(0, 0, config.ntpServer);
+  configTime(0, 0, secrets.ntpServer);
   delay(200);                                  // wait for ntp-sync
+
+  // set timezone and DST
   setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0", 1); //"Europe/Berlin"  from: http://www.famschmid.net/timezones.html
   tzset();                                     // Assign the local timezone from setenv
+
   tm *tm = uptime.getTime();
   Serial.printf("[  INIT  ] Current time is: %02d.%02d.%04d %02d:%02d:%02d\n", tm->tm_mday, tm->tm_mon, tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec);
   initStage++;
@@ -201,8 +210,8 @@ void setup()
   initStage++;
 
   Serial.print("[  INIT  ] Connecting to MQTT-Server... ");
-  mqttClient.setServer(config.mqttServer, 1883);
-  mqttClient.setCallback(callback);
+  mqttClient.setServer(secrets.mqttServer, 1883);
+  mqttClient.setCallback(mqttCallback);
   Serial.println("ok");
   initStage++;
 
@@ -220,8 +229,38 @@ void setup()
   }
   initStage++;
 
+  if (filesystemAvailable)
+  {
+    Serial.println("[  INIT  ] file list");
+    File root = SPIFFS.open("/");
+    File file = root.openNextFile();
+    while (file)
+    {
+      Serial.printf("%s - %u Bytes\n", file.name(), file.size());
+      file = root.openNextFile();
+    }
+    root.close();
+    file.close();
+    Serial.println();
+
+    Serial.println("[  INIT  ] Restoring data...");
+    persistency.loadTimeseries(&insideTemp, "/insideTemp.bin");
+    persistency.loadTimeseries(&insideHum, "/insideHum.bin");
+    persistency.loadTimeseries(&outsideTemp, "/outsideTemp.bin");
+    persistency.loadTimeseries(&pressure, "/pressure.bin");
+
+    insideTemp.trim(uptime.getSeconds(), 2 * 24 * 3600);
+    insideHum.trim(uptime.getSeconds(), 2 * 24 * 3600);
+    pressure.trim(uptime.getSeconds(), 2 * 24 * 3600);
+    outsideTemp.trim(uptime.getSeconds(), 2 * 24 * 3600);
+    initStage++;
+  }
+
   Serial.printf("[  INIT  ] Completed at stage %u\n\n", initStage);
 }
+
+
+
 
 void updateScreen()
 {
@@ -258,8 +297,11 @@ void updateScreen()
   display.printf("%.0f", currentPressurePascal / 100);
 
   // Linecharts
-  float tempChartMin = min(insideTemp.min, outsideTemp.min) - 2;
-  float tempChartMax = max(insideTemp.max, outsideTemp.max) + 2;
+  float tempChartMin = min(insideTemp.min, outsideTemp.min) - 1;
+  float tempChartMax = max(insideTemp.max, outsideTemp.max) + 1;
+
+  float tMin = min(min(min(insideTemp.data.front().time, outsideTemp.data.front().time), insideHum.data.front().time), pressure.data.front().time);
+  float tMax = uptime.getSeconds();
 
   // Y-Axis Labels
   display.setFont(&Org_01);
@@ -280,10 +322,10 @@ void updateScreen()
   display.printf("%.1f", pressure.min);
 
   // Charts
-  chart.lineChart(&display, &insideTemp, 170, 92, 230, 88, 2, COLOR, false, false, false, tempChartMin, tempChartMax);
-  chart.lineChart(&display, &outsideTemp, 170, 92, 230, 88, 2, BLACK, false, false, false, tempChartMin, tempChartMax);
-  chart.lineChart(&display, &insideHum, 170, 190, 230, 44, 2, BLACK);
-  chart.lineChart(&display, &pressure, 170, 242, 230, 44, 2, BLACK);
+  chart.lineChart(&display, &insideTemp, 170, 92, 230, 88, 2, COLOR, false, false, false, tempChartMin, tempChartMax, false, false, tMin, tMax);
+  chart.lineChart(&display, &outsideTemp, 170, 92, 230, 88, 2, BLACK, false, false, false, tempChartMin, tempChartMax, false, false, tMin, tMax);
+  chart.lineChart(&display, &insideHum, 170, 190, 230, 44, 2, BLACK, false, true, true, 0, 0, false, false, tMin, tMax);
+  chart.lineChart(&display, &pressure, 170, 242, 230, 44, 2, BLACK, false, true, true, 0, 0, false, false, tMin, tMax);
 
   // Uptime and Memory stats
   display.setFont(&Org_01);
@@ -303,6 +345,9 @@ void updateScreen()
   display.display(false);
 }
 
+
+
+
 void reconnect()
 {
   Serial.print("[  MQTT  ] Attempting MQTT connection... ");
@@ -317,6 +362,9 @@ void reconnect()
     Serial.print(mqttClient.state());
   }
 }
+
+
+
 
 // run forever
 void loop()
@@ -409,19 +457,32 @@ void loop()
       outsideTemp.compact(0.03);
     }
 
+    if (true && counter300s > 0)
+    {
+      if (filesystemAvailable)
+      {
+        persistency.saveTimeseries(&insideTemp, "/insideTemp.bin");
+        persistency.saveTimeseries(&insideHum, "/insideHum.bin");
+        persistency.saveTimeseries(&outsideTemp, "/outsideTemp.bin");
+        persistency.saveTimeseries(&pressure, "/pressure.bin");
+      }
+    }
+
     if (true)
     {
       Serial.print("[  DISP  ] Updating... ");
       updateScreen();
       Serial.println("ok");
     }
-
     counter300s++;
   }
 
   // 1h Tasks
   if (!(counterBase % (3600000L / SCHEDULER_MAIN_LOOP_MS)))
   {
+    if (counter1h > 0)
+    {
+    }
     counter1h++;
   }
 

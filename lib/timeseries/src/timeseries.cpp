@@ -110,8 +110,7 @@ float Timeseries::perpendicularDistance(const Point &pt, const Point &lineStart,
 void Timeseries::ramerDouglasPeucker(const vector<Point> &pointList, float epsilon, vector<Point> &out)
 {
   if (pointList.size() < 2)
-    // throw invalid_argument("Not enough points to simplify");
-    return;
+    throw invalid_argument("Not enough points to simplify");
 
   // Find the point with the maximum distance from line between start and end
   float dmax = 0.0;
@@ -142,8 +141,7 @@ void Timeseries::ramerDouglasPeucker(const vector<Point> &pointList, float epsil
     out.assign(recResults1.begin(), recResults1.end() - 1);
     out.insert(out.end(), recResults2.begin(), recResults2.end());
     if (out.size() < 2)
-      // throw runtime_error("Problem assembling output");
-      return;
+      throw runtime_error("Problem assembling output");
   }
   else
   {
@@ -251,4 +249,37 @@ void Timeseries::movingAverage(int32_t samples)
     printf("Error in Timeseries::movingAverage(): %s\n", e.what());
 #endif
   }
+}
+
+bool Timeseries::write(File file)
+{
+  bool res = true;
+
+  uint32_t elements = data.size();
+  file.write((const uint8_t *)&elements, 4);
+  Serial.printf("writing %u elements (%u Bytes)\n", elements, elements * sizeof(Point));
+  file.write((const uint8_t *)&data[0], elements * sizeof(Point));
+
+  return res;
+}
+
+bool Timeseries::read(File file)
+{
+  bool res = true;
+
+  uint32_t elements;
+  file.read((uint8_t *)&elements, 4);
+  Serial.printf("reading %u elements\n", elements);
+  if (elements < maxHistoryLength)
+  {
+    data.resize(elements);
+    file.read((uint8_t *)&data[0], elements * sizeof(Point));
+    updateStats();
+  }
+  else {
+    Serial.printf("elements (%u) > maxHistoryLength (%u)\n", elements, maxHistoryLength);
+    res = false;
+  }
+
+  return res;
 }

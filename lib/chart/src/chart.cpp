@@ -17,12 +17,17 @@ void Chart::lineChart(Adafruit_GFX *display,
                       bool yAxisMinAuto,
                       bool yAxisMaxAuto,
                       float yAxisMin,
-                      float yAxisMax)
+                      float yAxisMax,
+                      bool xAxisMinAuto,
+                      bool xAxisMaxAuto,
+                      float xAxisMin,
+                      float xAxisMax
+                      )
 {
     if (timeseries->data.size() > 1)
     {
-        uint32_t tMin = timeseries->data.front().time;
-        uint32_t tMax = timeseries->data.back().time;
+        uint32_t tMin = xAxisMinAuto ? timeseries->data.front().time : xAxisMin;
+        uint32_t tMax = xAxisMaxAuto ? timeseries->data.back().time : xAxisMax;
 
         float dataMin = yAxisMinAuto ? timeseries->min : yAxisMin;
         float dataMax = yAxisMaxAuto ? timeseries->max : yAxisMax;
