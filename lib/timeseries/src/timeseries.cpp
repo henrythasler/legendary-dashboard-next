@@ -270,7 +270,7 @@ bool Timeseries::read(File file)
   uint32_t elements;
   file.read((uint8_t *)&elements, 4);
   Serial.printf("reading %u elements\n", elements);
-  if (elements < maxHistoryLength)
+  if (elements <= maxHistoryLength)
   {
     data.resize(elements);
     file.read((uint8_t *)&data[0], elements * sizeof(Point));

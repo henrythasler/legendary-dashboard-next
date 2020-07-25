@@ -7,7 +7,7 @@
 #include <stddef.h>
 #include <time.h>
 #include <sys/time.h>
-#include <string> 
+#include <string>
 
 #ifdef ARDUINO
 #include <Arduino.h>
@@ -24,6 +24,6 @@ public:
     bool setTime(tm time);
     tm *getTime(void);
     uint32_t getMicros(void);
-    bool parseModemTime(const char *modemTime);
+    void applyLocale(String *input);
 };
 #endif

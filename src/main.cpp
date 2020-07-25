@@ -49,10 +49,10 @@ GxEPD2_3C<GxEPD2_420c, GxEPD2_420c::HEIGHT> display(GxEPD2_420c(/*CS=VSPI_CS0=D5
 
 // Statistics Helper-Class
 #include <timeseries.h>
-Timeseries insideTemp(1000U);
-Timeseries insideHum(1000U);
-Timeseries pressure(1000U);
-Timeseries outsideTemp(1000U);
+Timeseries insideTemp(2000U);
+Timeseries insideHum(2000U);
+Timeseries pressure(2000U);
+Timeseries outsideTemp(2000U);
 
 // uptime calculation
 #include <uptime.h>
@@ -62,7 +62,12 @@ Uptime uptime;
 #include <chart.h>
 Chart chart;
 
+// images & icons
 #include <gfx.h>
+
+// Graphic helper functions
+#include <graphics.h>
+Graphics graphics;
 
 // file system stuff
 #include <SPIFFS.h>
@@ -83,6 +88,7 @@ float currentPressurePascal;
 float currentOutsideTemperatureCelsius;
 
 char byteBuffer[100];
+char textBuffer[100];
 
 void mqttCallback(char *topic, byte *payload, unsigned int length)
 {
@@ -101,9 +107,6 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
   outsideTemp.push(timestamp, currentOutsideTemperatureCelsius);
   Serial.println();
 }
-
-
-
 
 // run once on startup
 void setup()
@@ -154,7 +157,7 @@ void setup()
   // Clock setup
   Serial.println("[  INIT  ] Clock synchronization");
   configTime(0, 0, secrets.ntpServer);
-  delay(200);                                  // wait for ntp-sync
+  delay(200); // wait for ntp-sync
 
   // set timezone and DST
   setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0", 1); //"Europe/Berlin"  from: http://www.famschmid.net/timezones.html
@@ -259,9 +262,6 @@ void setup()
   Serial.printf("[  INIT  ] Completed at stage %u\n\n", initStage);
 }
 
-
-
-
 void updateScreen()
 {
   display.fillScreen(GxEPD_WHITE);
@@ -272,15 +272,23 @@ void updateScreen()
   tm *tm = uptime.getTime();
   display.setFont(&NotoSans_Bold30pt7b);
   display.setTextColor(COLOR);
-  display.setCursor(128, 51);
-  // display.printf("%02d:%02d", tm->tm_hour, tm->tm_min);
+
+  Dimensions dim;
+  graphics.getTextBounds(&display, &dim, tm, "%H:%M");
+  display.setCursor(200 - dim.width / 2, 51);
   display.print(tm, "%H:%M");
 
   // Date
   display.setFont(&NotoSans_Bold13pt8b);
   display.setTextColor(BLACK);
-  display.setCursor(3, 82);
-  display.print(tm, "%EA, %d. %EB %Y");
+
+  strftime(textBuffer, sizeof(textBuffer), "%EA, %d. %EB %Y", tm);
+  String date(textBuffer);
+
+  uptime.applyLocale(&date);
+  graphics.getTextBounds(&display, &dim, date.c_str());
+  display.setCursor(200 - dim.width / 2, 82);
+  display.print(date.c_str());
 
   // current values
   display.setFont(&NotoSans_Bold20pt7b);
@@ -331,7 +339,7 @@ void updateScreen()
   display.setFont(&Org_01);
   display.setTextColor(BLACK);
   display.setCursor(0, 298);
-  display.printf("Free: %uK (%uK)  Temp: %u (%uB)  Hum: %u (%uB) Press: %u (%uB) Up: %" PRIi64 "s",
+  display.printf("Free: %uK (%uK)  Temp: %u (%uB)  Hum: %u (%uB) Press: %u (%uB) Up: %" PRIi64 "h",
                  ESP.getFreeHeap() / 1024,
                  ESP.getMaxAllocHeap() / 1024,
                  insideTemp.size(),
@@ -340,13 +348,10 @@ void updateScreen()
                  sizeof(insideHum.data) + sizeof(Point) * insideHum.data.capacity(),
                  pressure.size(),
                  sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
-                 (esp_timer_get_time() / 1000000LL));
+                 (esp_timer_get_time() / 3600000000LL));
 
   display.display(false);
 }
-
-
-
 
 void reconnect()
 {
@@ -362,9 +367,6 @@ void reconnect()
     Serial.print(mqttClient.state());
   }
 }
-
-
-
 
 // run forever
 void loop()
@@ -410,15 +412,15 @@ void loop()
       pressure.push(timestamp, currentPressurePascal / 100.); // use hPa
 
       int len = 0;
-      len = snprintf(byteBuffer, 100, "{\"value\": %.1f, \"timestamp\": %u, \"unit\": \"\u00b0C\"}", currentTemperatureCelsius, uptime.getSeconds());
-      mqttClient.publish("home/in/temp", byteBuffer, len);
-      len = snprintf(byteBuffer, 100, "%.1f", currentTemperatureCelsius);
-      mqttClient.publish("home/in/temp/value", byteBuffer, len);
+      len = snprintf(textBuffer, sizeof(textBuffer), "{\"value\": %.1f, \"timestamp\": %u, \"unit\": \"\u00b0C\"}", currentTemperatureCelsius, uptime.getSeconds());
+      mqttClient.publish("home/in/temp", textBuffer, len);
+      len = snprintf(textBuffer, sizeof(textBuffer), "%.1f", currentTemperatureCelsius);
+      mqttClient.publish("home/in/temp/value", textBuffer, len);
 
-      len = snprintf(byteBuffer, 100, "{\"value\": %.0f, \"timestamp\": %u, \"unit\": \"%%\"}", currentHumidityPercent, uptime.getSeconds());
-      mqttClient.publish("home/in/hum", byteBuffer, len);
-      len = snprintf(byteBuffer, 100, "%.0f", currentHumidityPercent);
-      mqttClient.publish("home/in/hum/value", byteBuffer, len);
+      len = snprintf(textBuffer, sizeof(textBuffer), "{\"value\": %.0f, \"timestamp\": %u, \"unit\": \"%%\"}", currentHumidityPercent, uptime.getSeconds());
+      mqttClient.publish("home/in/hum", textBuffer, len);
+      len = snprintf(textBuffer, sizeof(textBuffer), "%.0f", currentHumidityPercent);
+      mqttClient.publish("home/in/hum/value", textBuffer, len);
     }
 
     // memory state
@@ -471,7 +473,15 @@ void loop()
     if (true)
     {
       Serial.print("[  DISP  ] Updating... ");
-      updateScreen();
+      try
+      {
+        updateScreen();
+      }
+      catch (const std::exception &e)
+      {
+        Serial.printf("[ ERROR ] %s\n", e.what());
+      }
+
       Serial.println("ok");
     }
     counter300s++;
