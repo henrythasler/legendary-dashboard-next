@@ -47,7 +47,7 @@ struct Point
 typedef vector<Point>::iterator PointIterator;
 
 #ifndef PI
-#define PI 3.14159265358979323846 /* pi */
+#define PI 3.14159265358979323846
 #endif
 
 class Timeseries
@@ -71,8 +71,8 @@ public:
 
   float perpendicularDistance(const Point &pt, const Point &lineStart, const Point &lineEnd);
   void ramerDouglasPeucker(const vector<Point> &pointList, float epsilon, vector<Point> &out);
-  bool write(File file);
-  bool read(File file);
+  bool write(File* file);
+  bool read(File* file);
 
   void movingAverage(int32_t samples = 5);
 };

@@ -24,6 +24,8 @@ public:
     bool setTime(tm time);
     tm *getTime(void);
     uint32_t getMicros(void);
+    #ifdef ARDUINO
     void applyLocale(String *input);
+    #endif
 };
 #endif

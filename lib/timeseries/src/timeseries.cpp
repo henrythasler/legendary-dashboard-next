@@ -251,33 +251,34 @@ void Timeseries::movingAverage(int32_t samples)
   }
 }
 
-bool Timeseries::write(File file)
+bool Timeseries::write(File *file)
 {
   bool res = true;
 
   uint32_t elements = data.size();
-  file.write((const uint8_t *)&elements, 4);
-  Serial.printf("writing %u elements (%u Bytes)\n", elements, elements * sizeof(Point));
-  file.write((const uint8_t *)&data[0], elements * sizeof(Point));
+  file->write((const uint8_t *)&elements, 4);
+  // Serial.printf("writing %u elements (%u Bytes)\n", elements, elements * sizeof(Point));
+  file->write((const uint8_t *)&data[0], elements * sizeof(Point));
 
   return res;
 }
 
-bool Timeseries::read(File file)
+bool Timeseries::read(File *file)
 {
   bool res = true;
 
   uint32_t elements;
-  file.read((uint8_t *)&elements, 4);
-  Serial.printf("reading %u elements\n", elements);
+  file->read((uint8_t *)&elements, 4);
+  // Serial.printf("reading %u elements\n", elements);
   if (elements <= maxHistoryLength)
   {
     data.resize(elements);
-    file.read((uint8_t *)&data[0], elements * sizeof(Point));
+    file->read((uint8_t *)&data[0], elements * sizeof(Point));
     updateStats();
   }
-  else {
-    Serial.printf("elements (%u) > maxHistoryLength (%u)\n", elements, maxHistoryLength);
+  else
+  {
+    // Serial.printf("elements (%u) > maxHistoryLength (%u)\n", elements, maxHistoryLength);
     res = false;
   }
 

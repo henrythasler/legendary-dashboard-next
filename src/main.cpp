@@ -49,10 +49,10 @@ GxEPD2_3C<GxEPD2_420c, GxEPD2_420c::HEIGHT> display(GxEPD2_420c(/*CS=VSPI_CS0=D5
 
 // Statistics Helper-Class
 #include <timeseries.h>
-Timeseries insideTemp(2000U);
-Timeseries insideHum(2000U);
-Timeseries pressure(2000U);
-Timeseries outsideTemp(2000U);
+Timeseries insideTemp(1400U);
+Timeseries insideHum(1400U);
+Timeseries pressure(1400U);
+Timeseries outsideTemp(1400U);
 
 // uptime calculation
 #include <uptime.h>
@@ -78,6 +78,7 @@ bool filesystemAvailable = true;
 // Flow control, basic task scheduler
 #define SCHEDULER_MAIN_LOOP_MS (10) // ms
 uint32_t counterBase = 0;
+uint32_t counter2s = 0;
 uint32_t counter300s = 0;
 uint32_t counter1h = 0;
 uint32_t initStage = 0;
@@ -293,22 +294,34 @@ void updateScreen()
   // current values
   display.setFont(&NotoSans_Bold20pt7b);
   display.setTextColor(WHITE);
-  display.setCursor(48, 126);
-  display.printf("%.1f", currentTemperatureCelsius);
-  display.setCursor(48, 173);
-  display.printf("%.1f", currentOutsideTemperatureCelsius);
+
+  snprintf(textBuffer, sizeof(textBuffer), "%.1f", currentTemperatureCelsius);
+  graphics.getTextBounds(&display, &dim, textBuffer);
+  display.setCursor(140 - dim.width, 126);
+  display.print(textBuffer);
+
+  snprintf(textBuffer, sizeof(textBuffer), "%.1f", currentOutsideTemperatureCelsius);
+  graphics.getTextBounds(&display, &dim, textBuffer);
+  display.setCursor(140 - dim.width, 173);
+  display.print(textBuffer);
 
   display.setTextColor(BLACK);
-  display.setCursor(95, 227);
-  display.printf("%.0f", currentHumidityPercent);
-  display.setCursor(48, 280);
-  display.printf("%.0f", currentPressurePascal / 100);
+
+  snprintf(textBuffer, sizeof(textBuffer), "%.0f", currentHumidityPercent);
+  graphics.getTextBounds(&display, &dim, textBuffer);
+  display.setCursor(140 - dim.width, 227);
+  display.print(textBuffer);
+
+  snprintf(textBuffer, sizeof(textBuffer), "%.0f", currentPressurePascal / 100);
+  graphics.getTextBounds(&display, &dim, textBuffer);
+  display.setCursor(140 - dim.width, 280);
+  display.print(textBuffer);
 
   // Linecharts
   float tempChartMin = min(insideTemp.min, outsideTemp.min) - 1;
   float tempChartMax = max(insideTemp.max, outsideTemp.max) + 1;
 
-  float tMin = min(min(min(insideTemp.data.front().time, outsideTemp.data.front().time), insideHum.data.front().time), pressure.data.front().time);
+  float tMin = uptime.getSeconds() - 2 * 24 * 3600; // min(min(min(insideTemp.data.front().time, outsideTemp.data.front().time), insideHum.data.front().time), pressure.data.front().time);
   float tMax = uptime.getSeconds();
 
   // Y-Axis Labels
@@ -339,16 +352,12 @@ void updateScreen()
   display.setFont(&Org_01);
   display.setTextColor(BLACK);
   display.setCursor(0, 298);
-  display.printf("Free: %uK (%uK)  Temp: %u (%uB)  Hum: %u (%uB) Press: %u (%uB) Up: %" PRIi64 "h",
+  uint32_t upSeconds = uint32_t(esp_timer_get_time() / 1000000LL);
+  display.printf("Free: %uK (%uK)  Up: %uh%02um",
                  ESP.getFreeHeap() / 1024,
                  ESP.getMaxAllocHeap() / 1024,
-                 insideTemp.size(),
-                 sizeof(insideTemp.data) + sizeof(Point) * insideTemp.data.capacity(),
-                 insideHum.size(),
-                 sizeof(insideHum.data) + sizeof(Point) * insideHum.data.capacity(),
-                 pressure.size(),
-                 sizeof(pressure.data) + sizeof(Point) * pressure.data.capacity(),
-                 (esp_timer_get_time() / 3600000000LL));
+                 upSeconds / 3600,
+                 upSeconds / 60 % 60);
 
   display.display(false);
 }
@@ -388,6 +397,15 @@ void loop()
   {
     // indicate alive
     digitalWrite(LED_BUILTIN, LOW);
+
+    if (counter2s == 1)
+    {
+      Serial.print("[  DISP  ] Updating... ");
+      updateScreen();
+      Serial.println("ok");
+    }
+
+    counter2s++;
   }
 
   // 30s Tasks
@@ -442,7 +460,7 @@ void loop()
   // e-Paper Display MUST not be updated more often than every 180s to ensure lifetime function
   if (!(counterBase % (300000L / SCHEDULER_MAIN_LOOP_MS)))
   {
-    if (counter300s > 0) // don't trim/compact on startup
+    if (counter300s > 0) // skip on startup
     {
       // RAM is limited so we cut off the timeseries after x days
       insideTemp.trim(uptime.getSeconds(), 2 * 24 * 3600);
@@ -457,10 +475,7 @@ void loop()
       insideHum.compact(0.2);
       pressure.compact(0.05);
       outsideTemp.compact(0.03);
-    }
 
-    if (true && counter300s > 0)
-    {
       if (filesystemAvailable)
       {
         persistency.saveTimeseries(&insideTemp, "/insideTemp.bin");
@@ -468,20 +483,9 @@ void loop()
         persistency.saveTimeseries(&outsideTemp, "/outsideTemp.bin");
         persistency.saveTimeseries(&pressure, "/pressure.bin");
       }
-    }
 
-    if (true)
-    {
       Serial.print("[  DISP  ] Updating... ");
-      try
-      {
-        updateScreen();
-      }
-      catch (const std::exception &e)
-      {
-        Serial.printf("[ ERROR ] %s\n", e.what());
-      }
-
+      updateScreen();
       Serial.println("ok");
     }
     counter300s++;
@@ -490,9 +494,6 @@ void loop()
   // 1h Tasks
   if (!(counterBase % (3600000L / SCHEDULER_MAIN_LOOP_MS)))
   {
-    if (counter1h > 0)
-    {
-    }
     counter1h++;
   }
 

@@ -32,6 +32,7 @@ tm *Uptime::getTime(void)
     return localtime(&nowtime);
 }
 
+#ifdef ARDUINO
 void Uptime::applyLocale(String *input)
 {
     input->replace("Monday", "Montag");
@@ -51,3 +52,4 @@ void Uptime::applyLocale(String *input)
     input->replace("October", "Oktober");
     input->replace("December", "Dezember");
 }
+#endif

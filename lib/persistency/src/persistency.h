@@ -3,7 +3,10 @@
 #define PERSISTENCY_H
 
 #include <timeseries.h>
+
+#ifdef ARDUINO
 #include <SPIFFS.h>
+#endif
 
 using namespace std;
 

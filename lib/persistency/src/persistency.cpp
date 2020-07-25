@@ -4,12 +4,13 @@ Persistency::Persistency(void)
 {
 }
 
+#ifdef ARDUINO
 void Persistency::loadTimeseries(Timeseries *series, const char *filename)
 {
   File file = SPIFFS.open(filename, FILE_READ);
   if (file && file.size() > 0)
   {
-    if ((*series).read(file))
+    if ((*series).read(&file))
     {
       Serial.printf("[  FILE  ] File was read '%s'\n", filename);
     }
@@ -30,7 +31,7 @@ void Persistency::saveTimeseries(Timeseries *series, const char *filename)
   File file = SPIFFS.open(filename, FILE_WRITE);
   if (file)
   {
-    if ((*series).write(file))
+    if ((*series).write(&file))
     {
       Serial.println("[  FILE  ] File was written");
     }
@@ -45,3 +46,4 @@ void Persistency::saveTimeseries(Timeseries *series, const char *filename)
     Serial.println("[ ERROR  ] There was an error opening the file for writing");
   }
 }
+#endif
