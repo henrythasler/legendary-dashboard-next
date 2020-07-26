@@ -240,12 +240,11 @@ void setup()
     File file = root.openNextFile();
     while (file)
     {
-      Serial.printf("%s - %u Bytes\n", file.name(), file.size());
+      Serial.printf("[  FILE  ] %s - %u Bytes\n", file.name(), file.size());
       file = root.openNextFile();
     }
     root.close();
     file.close();
-    Serial.println();
 
     Serial.println("[  INIT  ] Restoring data...");
     persistency.loadTimeseries(&insideTemp, "/insideTemp.bin");
@@ -268,6 +267,16 @@ void updateScreen()
   display.fillScreen(GxEPD_WHITE);
   display.drawBitmap(0, 0, images.background.color, display.epd2.WIDTH, display.epd2.HEIGHT, COLOR);
   display.drawBitmap(0, 0, images.background.black, display.epd2.WIDTH, display.epd2.HEIGHT, BLACK);
+
+  // WiFi Signal Strength
+  int8_t rssi = WiFi.RSSI();
+  int8_t rssiPercent = rssi >= -50 ? 100 : (rssi <= -100 ? 0 : 2 * (rssi + 100));
+
+  if(rssiPercent <1) display.drawInvertedBitmap(375, 0, wifi0, 25, 18, BLACK);
+  else if (rssiPercent < 25) display.drawInvertedBitmap(375, 0, wifi1, 25, 18, BLACK);
+  else if (rssiPercent < 50) display.drawInvertedBitmap(375, 0, wifi2, 25, 18, BLACK);
+  else if (rssiPercent < 75) display.drawInvertedBitmap(375, 0, wifi3, 25, 18, BLACK);
+  else display.drawInvertedBitmap(375, 0, wifi4, 25, 18, BLACK);
 
   // Time
   tm *tm = uptime.getTime();
@@ -353,11 +362,12 @@ void updateScreen()
   display.setTextColor(BLACK);
   display.setCursor(0, 298);
   uint32_t upSeconds = uint32_t(esp_timer_get_time() / 1000000LL);
-  display.printf("Free: %uK (%uK)  Up: %uh%02um",
+  display.printf("Free: %uK (%uK)  Up: %uh%02um  WiFi: %i%%",
                  ESP.getFreeHeap() / 1024,
                  ESP.getMaxAllocHeap() / 1024,
                  upSeconds / 3600,
-                 upSeconds / 60 % 60);
+                 upSeconds / 60 % 60,
+                 rssiPercent);
 
   display.display(false);
 }
@@ -442,9 +452,10 @@ void loop()
     }
 
     // memory state
-    Serial.printf("[ STATUS ] Free: %u KiB (%u KiB)  In: %u (%u B)  Out: %u (%u B)  Hum: %u (%u B) Press: %u (%u B) Uptime: %" PRIi64 "s\n",
+    Serial.printf("[ STATUS ] Free: %u KiB (%u KiB)  RSSI:%i dBm  In: %u (%u B)  Out: %u (%u B)  Hum: %u (%u B) Press: %u (%u B) Uptime: %" PRIi64 "s\n",
                   ESP.getFreeHeap() / 1024,
                   ESP.getMaxAllocHeap() / 1024,
+                  WiFi.RSSI(),
                   insideTemp.size(),
                   sizeof(insideTemp.data) + sizeof(Point) * insideTemp.data.capacity(),
                   outsideTemp.size(),

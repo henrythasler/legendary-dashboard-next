@@ -23,6 +23,7 @@ An e-paper dashboard in a photo frame to show environment information.
 - [Getting Started with the ESP32 Development Board](https://randomnerdtutorials.com/getting-started-with-esp32/)
 - [List all files in the SPIFFS file system](https://techtutorialsx.com/2019/02/23/esp32-arduino-list-all-files-in-the-spiffs-file-system/)
 - [DOIT ESP32 Development Board Review](https://idyl.io/doit-esp32-development-board-review/)
+- [Best dBm Values for Wifi](https://support.randomsolutions.nl/827069-Best-dBm-Values-for-Wifi)
 
 ### C/C++, Coding
 

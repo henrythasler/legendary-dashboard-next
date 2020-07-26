@@ -2,6 +2,7 @@
 #define GFX_H
 
 #include <images.h>
+#include <icons.h>
 
 struct Image{
 	const uint8_t *color;
@@ -17,6 +18,4 @@ struct {
   Image background = Image(backgroundRed, backgroundBlack);
 } images;
 
-// struct {
-// } icons;
 #endif

@@ -12,7 +12,7 @@ void Persistency::loadTimeseries(Timeseries *series, const char *filename)
   {
     if ((*series).read(&file))
     {
-      Serial.printf("[  FILE  ] File was read '%s'\n", filename);
+      Serial.printf("[  FILE  ] File was read '%s' (%u values, %u Bytes)\n", filename, series->size(), file.size());
     }
     else
     {
@@ -33,7 +33,7 @@ void Persistency::saveTimeseries(Timeseries *series, const char *filename)
   {
     if ((*series).write(&file))
     {
-      Serial.println("[  FILE  ] File was written");
+      Serial.printf("[  FILE  ] File was written '%s' (%u values, %u Bytes)\n", filename, series->size(), file.size());
     }
     else
     {
