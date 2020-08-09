@@ -169,6 +169,9 @@ int32_t Timeseries::compact(float epsilon)
       removedEntries = data.size() - pointListOut.size();
       data.assign(pointListOut.begin(), pointListOut.end());
       data.shrink_to_fit();
+
+      if (removedEntries > 0)
+        updateStats();
     }
     catch (const std::exception &e)
     {
@@ -200,6 +203,9 @@ int32_t Timeseries::trim(uint32_t currentTimeSeconds, uint32_t maxAgeSeconds)
       }
       removedEntries = i - data.begin();
       data.erase(data.begin(), i);
+
+      if (removedEntries > 0)
+        updateStats();
     }
   }
   catch (const std::exception &e)
