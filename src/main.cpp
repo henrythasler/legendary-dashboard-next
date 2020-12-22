@@ -41,6 +41,7 @@ void setup()
     SPIFFS.remove("/insideTemp.bin");
     SPIFFS.remove("/insideHum.bin");
     SPIFFS.remove("/pressure.bin");
+    SPIFFS.remove("/outsideTemp.bin");
   }
 
   Serial.printf("[  INIT  ] Completed at stage %u\n\n", initStage);
