@@ -31,6 +31,7 @@ Adafruit_BME280 bme;         // use I2C
 bool environmentSensorAvailable = false;
 
 // Display stuff
+#include <Adafruit_I2CDevice.h>
 #include <GxEPD2_3C.h>
 GxEPD2_3C<GxEPD2_420c, GxEPD2_420c::HEIGHT> display(GxEPD2_420c(/*CS=VSPI_CS0=D5*/ 5, /*DC=D17*/ 17, /*RST=D16*/ 16, /*BUSY=D15*/ 15));
 #define BLACK (0x0000)
@@ -272,11 +273,16 @@ void updateScreen()
   int8_t rssi = WiFi.RSSI();
   int8_t rssiPercent = rssi >= -50 ? 100 : (rssi <= -100 ? 0 : 2 * (rssi + 100));
 
-  if(rssiPercent <1) display.drawInvertedBitmap(375, 0, wifi0, 25, 18, BLACK);
-  else if (rssiPercent < 25) display.drawInvertedBitmap(375, 0, wifi1, 25, 18, BLACK);
-  else if (rssiPercent < 50) display.drawInvertedBitmap(375, 0, wifi2, 25, 18, BLACK);
-  else if (rssiPercent < 75) display.drawInvertedBitmap(375, 0, wifi3, 25, 18, BLACK);
-  else display.drawInvertedBitmap(375, 0, wifi4, 25, 18, BLACK);
+  if (rssiPercent < 1)
+    display.drawInvertedBitmap(375, 0, wifi0, 25, 18, BLACK);
+  else if (rssiPercent < 25)
+    display.drawInvertedBitmap(375, 0, wifi1, 25, 18, BLACK);
+  else if (rssiPercent < 50)
+    display.drawInvertedBitmap(375, 0, wifi2, 25, 18, BLACK);
+  else if (rssiPercent < 75)
+    display.drawInvertedBitmap(375, 0, wifi3, 25, 18, BLACK);
+  else
+    display.drawInvertedBitmap(375, 0, wifi4, 25, 18, BLACK);
 
   // Time
   tm *tm = uptime.getTime();
@@ -362,12 +368,16 @@ void updateScreen()
   display.setTextColor(BLACK);
   display.setCursor(0, 298);
   uint32_t upSeconds = uint32_t(esp_timer_get_time() / 1000000LL);
-  display.printf("Free: %uK (%uK)  Up: %uh%02um  WiFi: %i%%",
+  display.printf("Free: %uK (%uK)  Up: %uh%02um  WiFi: %i%%  Buf: %i%% %i%% %i%% %i%%",
                  ESP.getFreeHeap() / 1024,
                  ESP.getMaxAllocHeap() / 1024,
                  upSeconds / 3600,
                  upSeconds / 60 % 60,
-                 rssiPercent);
+                 rssiPercent,
+                 insideTemp.size() * 100 / insideTemp.maxHistoryLength,
+                 outsideTemp.size() * 100 / outsideTemp.maxHistoryLength,
+                 insideHum.size() * 100 / insideHum.maxHistoryLength,
+                 pressure.size() * 100 / pressure.maxHistoryLength);
 
   display.display(false);
 }
@@ -485,7 +495,7 @@ void loop()
       insideTemp.compact(0.03);
       insideHum.compact(0.2);
       pressure.compact(0.05);
-      outsideTemp.compact(0.03);
+      outsideTemp.compact(0.2);
 
       if (filesystemAvailable)
       {
